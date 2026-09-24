@@ -1,0 +1,6 @@
+{
+  "name": "Box ERP",
+  "description": "Box - Sistema integrado de gestão de estoque, catálogo de produtos, importação automatizada de XML e emissão fiscal.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
