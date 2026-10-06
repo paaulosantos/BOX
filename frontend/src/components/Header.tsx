@@ -11,7 +11,6 @@ interface HeaderProps {
   onSearchChange: (query: string) => void;
   unreadCount?: number;
   onTriggerToast: (title: string, desc?: string) => void;
-  onOpenImageLinks?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,7 +22,6 @@ export const Header: React.FC<HeaderProps> = ({
   onSearchChange,
   unreadCount = 2,
   onTriggerToast,
-  onOpenImageLinks,
 }) => {
   const [branchOpen, setBranchOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -135,17 +133,6 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Notifications & Profile */}
       <div className="flex items-center gap-3">
-        {onOpenImageLinks && (
-          <button
-            onClick={onOpenImageLinks}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 hover:text-[#FF8500] hover:bg-[#FFF1DC] border border-slate-200 rounded-lg transition-colors cursor-pointer"
-            title="Ver telas do HTML e referências de imagens"
-          >
-            <span className="material-symbols-outlined text-[16px] text-[#FF8500]">photo_library</span>
-            <span>Telas HTML</span>
-          </button>
-        )}
-
         {/* Notifications */}
         <div className="relative">
           <button

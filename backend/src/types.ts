@@ -2,10 +2,7 @@ export type ViewType =
   | 'dashboard' 
   | 'products' 
   | 'inventory' 
-  | 'invoices' 
-  | 'sales' 
-  | 'purchases' 
-  | 'finance';
+  | 'invoices';
 
 export interface Product {
   id: string;
@@ -29,14 +26,14 @@ export interface Product {
 export interface StockMovement {
   id: string;
   productId?: string;
-  timestamp: string; // e.g. "24/10 14:32"
-  time: string; // e.g. "14:32"
+  timestamp: string;
+  time: string;
   productName: string;
   sku: string;
   origin: string;
   destination: string;
   operationType: 'Entrada Fornecedor' | 'Saída PDV' | 'Transferência' | 'Ajuste Avaria' | 'Ajuste Inventário';
-  quantity: number; // positive or negative
+  quantity: number;
   unit: string;
   responsibleName: string;
   responsibleAvatar: string;
@@ -45,15 +42,15 @@ export interface StockMovement {
 
 export interface Transfer {
   id: string;
-  code: string; // e.g. "TRF-2024-089"
-  description: string; // e.g. "120x Fonte Bivolt 60W"
+  code: string;
+  description: string;
   productName: string;
   quantity: number;
   originBranch: string;
   destinationBranch: string;
   status: 'Em Rota' | 'Em Separação' | 'Concluído';
   progressPercent: number;
-  eta: string; // e.g. "Hoje às 17:00"
+  eta: string;
   trackingCode: string;
   driver?: string;
   plate?: string;
@@ -61,13 +58,13 @@ export interface Transfer {
 
 export interface Invoice {
   id: string;
-  number: string; // e.g. "NF-e 000.010.450"
-  series: string; // e.g. "Série 1"
+  number: string;
+  series: string;
   type: 'Saída' | 'Entrada';
   docType: 'NF-e' | 'NFC-e';
-  partyName: string; // e.g. "Alpha Computadores e Redes SA"
-  taxId: string; // CNPJ or CPF formatted
-  date: string; // e.g. "Hoje, 11:28"
+  partyName: string;
+  taxId: string;
+  date: string;
   amount: number;
   status: 'Autorizada' | 'Processando' | 'Cancelada' | 'Contingência';
   accessKey: string;
@@ -95,11 +92,4 @@ export interface StagedInvoice {
   issueDate: string;
   accessKey: string;
   items: StagedXmlItem[];
-}
-
-export interface ToastMessage {
-  id: string;
-  title: string;
-  description?: string;
-  type?: 'success' | 'info' | 'warning' | 'error';
 }

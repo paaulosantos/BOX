@@ -19,9 +19,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'products', label: 'Produtos & Estoque', icon: 'inventory_2', badge: stockAlertCount, badgeColor: 'bg-[#FFF1DC] text-[#FF8500] border border-[#FFD2A6]/60' },
     { id: 'inventory', label: 'Estoque & Movimentações', icon: 'warehouse' },
     { id: 'invoices', label: 'Notas Fiscais & XML', icon: 'receipt_long', badge: pendingInvoiceCount, badgeColor: 'bg-[#FFF1DC] text-[#FF8500] border border-[#FFD2A6]/60' },
-    { id: 'sales', label: 'Vendas & PDV', icon: 'point_of_sale' },
-    { id: 'purchases', label: 'Compras', icon: 'local_shipping' },
-    { id: 'finance', label: 'Financeiro', icon: 'payments' },
   ];
 
   return (
