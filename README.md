@@ -1,4 +1,4 @@
-# NexStock ERP (Box ERP)
+# Box ERP)
 
 Sistema moderno e integrado para gestão de estoque, controle de transferências entre filiais, conferência/importação de XML e emissão fiscal (NF-e e NFC-e).
 
