@@ -16,6 +16,8 @@ export interface Product {
   minStock: number;
   costPrice: number;
   salePrice: number;
+  allowFractional?: boolean;
+  fractionStep?: number;
   image?: string;
   supplier?: string;
   invoiceNumber?: string;
@@ -96,6 +98,13 @@ export interface StagedXmlItem {
   status: 'linked' | 'unlinked';
   cfop: string;
   ncm: string;
+  category?: string;
+  salePrice?: number;
+  imageDataUrl?: string;
+  allowFractional?: boolean;
+  fractionStep?: number;
+  minStock?: number;
+  maxStock?: number;
 }
 
 export interface StagedInvoice {

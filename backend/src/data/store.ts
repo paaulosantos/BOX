@@ -15,6 +15,7 @@ const ProductModel = sequelize.define('Product', {
   unit: { type: DataTypes.STRING, allowNull: false, defaultValue: 'un' }, minStock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   maxStock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 }, costPrice: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   salePrice: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 }, image: { type: DataTypes.TEXT, allowNull: true }, supplier: { type: DataTypes.STRING, allowNull: true },
+  allowFractional: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, fractionStep: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 1 },
   invoiceNumber: { type: DataTypes.STRING, allowNull: true }, ncm: { type: DataTypes.STRING, allowNull: true }, icms: { type: DataTypes.STRING, allowNull: true }, cfop: { type: DataTypes.STRING, allowNull: true },
 });
 const MovementModel = sequelize.define('StockMovement', {
@@ -67,6 +68,8 @@ export const db = {
     }
     const productColumns = await queryInterface.describeTable('Products');
     if (!productColumns.sourceCode) await queryInterface.addColumn('Products', 'sourceCode', { type: DataTypes.STRING, allowNull: true });
+    if (!productColumns.allowFractional) await queryInterface.addColumn('Products', 'allowFractional', { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false });
+    if (!productColumns.fractionStep) await queryInterface.addColumn('Products', 'fractionStep', { type: DataTypes.FLOAT, allowNull: false, defaultValue: 1 });
     const movementColumns = await queryInterface.describeTable('StockMovements');
     for (const [name, definition] of Object.entries({ invoiceNumber: DataTypes.STRING, unitCost: DataTypes.FLOAT, unitSalePrice: DataTypes.FLOAT, sourceBalance: DataTypes.FLOAT, sourceCostValue: DataTypes.FLOAT, sourceSaleValue: DataTypes.FLOAT, sourceRow: DataTypes.INTEGER, importSourceKey: DataTypes.STRING })) {
       if (!movementColumns[name]) await queryInterface.addColumn('StockMovements', name, { type: definition, allowNull: true });
@@ -89,6 +92,14 @@ export const db = {
   },
   async getProductById(id: string) { const row = await ProductModel.findByPk(id); return row ? plain<Product>(row) : undefined; },
   async getProductImage(id: string) { const row = await ProductImageModel.findOne({ where: { productId: id }, order: [['isPrimary','DESC'],['sourceRow','DESC']] }); return row ? { mimeType: row.getDataValue('mimeType') as string, data: row.getDataValue('data') as Buffer } : null; },
+  async saveProductImage(productId: string, dataUrl: string, transaction?: any) {
+    const match = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+    if (!match) throw new Error('A foto deve ser PNG, JPG, WEBP ou GIF.');
+    const data = Buffer.from(match[2], 'base64');
+    if (data.length > 3 * 1024 * 1024) throw new Error('A foto deve ter no máximo 3 MB.');
+    await ProductImageModel.upsert({ productId, sourceRow: 0, sourceKey: `PRODUCT:${productId}`, isPrimary: true, mimeType: match[1], data }, { transaction });
+    await ProductModel.update({ image: `/api/products/${productId}/image` }, { where: { id: productId }, transaction });
+  },
   async addProduct(data: any) { const row=await ProductModel.create(data); const product:any=plain<Product>(row); product.status=product.stock<=0?'out':product.maxStock>0&&product.stock>product.maxStock?'high':product.stock<=product.minStock?'low':'ok'; product.icon='inventory_2'; product.iconBg='bg-blue-50'; product.iconColor='text-primary'; return product; },
   async updateProduct(id: string, data: any) { const row = await ProductModel.findByPk(id); if (!row) return null; await row.update(data); return (await this.getProducts()).find(p => p.id === id) || null; },
   async adjustProductStock(productId: string, newStock: number, reason: string, observation: string) {
@@ -127,10 +138,22 @@ export const db = {
       const now=new Date(); const when=now.toLocaleString('pt-BR'); const time=now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
       let latestMovement: StockMovement|null = null;
       for(const item of staged.items) {
-        const product= item.skuMatch ? await ProductModel.findOne({where:{sku:item.skuMatch},transaction}) : null;
-        if(!product) throw new Error(`Vincule o SKU do item "${item.name}" antes de confirmar.`);
-        const p:any=plain<Product>(product); await product.update({stock:p.stock+item.quantity,costPrice:item.unitPrice,supplier:staged.supplierName,invoiceNumber:staged.invoiceNumber},{transaction});
-        const movement=await MovementModel.create({productId:p.id,timestamp:when,time,productName:p.name,sku:p.sku,origin:staged.supplierName,destination:'Estoque',operationType:'Entrada Fornecedor',quantity:item.quantity,unit:item.unit,responsibleName:'Operador',responsibleAvatar:'',branch:'matriz'},{transaction}); latestMovement=plain<StockMovement>(movement);
+        const sku=item.skuMatch?.trim().toUpperCase();
+        if(!sku || !item.name?.trim() || !Number.isFinite(item.quantity) || item.quantity<=0) throw new Error(`Confira código, descrição e quantidade do item "${item.name || item.id}".`);
+        let product=await ProductModel.findOne({where:{sku},transaction});
+        if(!product && item.salePrice===undefined) throw new Error(`Defina o preço de venda do novo produto "${item.name}" antes de confirmar.`);
+        if(!product) product=await ProductModel.create({name:item.name.trim(),sku,category:item.category?.trim()||'Geral',stock:0,unit:item.unit||'un',minStock:item.minStock||0,maxStock:item.maxStock||0,costPrice:item.unitPrice,salePrice:item.salePrice??0,supplier:staged.supplierName,invoiceNumber:staged.invoiceNumber,ncm:item.ncm,cfop:item.cfop,allowFractional:item.allowFractional||false,fractionStep:item.allowFractional?(item.fractionStep||0.5):1},{transaction});
+        const p:any=plain<Product>(product);
+        const updates:any={name:item.name.trim(),stock:p.stock+item.quantity,costPrice:item.unitPrice,supplier:staged.supplierName,invoiceNumber:staged.invoiceNumber,unit:item.unit||p.unit,ncm:item.ncm||p.ncm,cfop:item.cfop||p.cfop};
+        if(item.category?.trim()) updates.category=item.category.trim();
+        if(item.salePrice!==undefined) updates.salePrice=item.salePrice;
+        if(item.allowFractional!==undefined) updates.allowFractional=item.allowFractional;
+        if(item.allowFractional&&item.fractionStep) updates.fractionStep=item.fractionStep;
+        if(item.minStock!==undefined) updates.minStock=item.minStock;
+        if(item.maxStock!==undefined) updates.maxStock=item.maxStock;
+        await product.update(updates,{transaction});
+        if(item.imageDataUrl) await this.saveProductImage(p.id,item.imageDataUrl,transaction);
+        const movement=await MovementModel.create({productId:p.id,timestamp:when,time,productName:item.name.trim(),sku,origin:staged.supplierName,destination:'Estoque',operationType:'Entrada Fornecedor',quantity:item.quantity,unit:item.unit||'un',responsibleName:'Operador',responsibleAvatar:'',branch:'matriz',invoiceNumber:staged.invoiceNumber,unitCost:item.unitPrice,unitSalePrice:item.salePrice},{transaction}); latestMovement=plain<StockMovement>(movement);
       }
       const invoice=await InvoiceModel.create({number:staged.invoiceNumber,series:'1',type:'Entrada',docType:'NF-e',partyName:staged.supplierName,taxId:staged.supplierCnpj,date:when,amount:staged.totalAmount,status:'Importada',accessKey:staged.accessKey,xmlAvailable:Boolean(staged.xmlContent),xml:staged.xmlContent||null},{transaction});
       await StagedModel.destroy({where:{id:1},transaction});

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Invoice, StagedInvoice } from '../../types';
 
 interface InvoicesViewProps {
@@ -37,7 +37,24 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const [activeTab, setActiveTab] = useState<'all' | 'in' | 'out' | 'pending'>('all');
   const [localSearch, setLocalSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [stagedDraft, setStagedDraft] = useState<StagedInvoice | null>(stagedInvoice);
+  const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => setStagedDraft(stagedInvoice), [stagedInvoice]);
+
+  const updateStagedItem = (itemId: string, updates: Partial<StagedInvoice['items'][number]>) => {
+    setStagedDraft(current => current ? { ...current, items: current.items.map(item => item.id === itemId ? { ...item, ...updates } : item) } : current);
+  };
+  const readItemPhoto = (itemId: string, file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/') || file.size > 3 * 1024 * 1024) {
+      onTriggerToast('Foto não aceita', 'Use uma imagem de até 3 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => updateStagedItem(itemId, { imageDataUrl: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
 
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
   const issuedTotal = invoices.filter(i => i.type === 'Saída').reduce((sum, i) => sum + i.amount, 0);
@@ -80,7 +97,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
         const prod = Array.from(det.children).find(e => e.localName === 'prod');
         if (!prod) return null;
         const field = (key: string) => text(prod, key);
-        return { id: `${index + 1}`, name: field('xProd'), skuMatch: field('cProd') || undefined, quantity: Number(field('qCom')) || 0, unit: field('uCom') || 'un', unitPrice: Number(field('vUnCom')) || 0, status: 'unlinked' as const, cfop: field('CFOP'), ncm: field('NCM') };
+        return { id: `${index + 1}`, name: field('xProd'), skuMatch: field('cProd') || undefined, quantity: Number(field('qCom')) || 0, unit: field('uCom') || 'un', unitPrice: Number(field('vUnCom')) || 0, status: 'unlinked' as const, cfop: field('CFOP'), ncm: field('NCM'), allowFractional: false, fractionStep: 0.5 };
       }).filter(Boolean) as StagedInvoice['items'];
       if (!items.length) throw new Error('A NF-e não contém produtos.');
       const staged: StagedInvoice = { supplierName: text(emit, 'xNome'), supplierCnpj: text(emit, 'CNPJ') || text(emit, 'CPF'), invoiceNumber: text(ide, 'nNF'), totalAmount: Number(text(total || xml, 'vNF')) || 0, issueDate: text(ide, 'dhEmi') || text(ide, 'dEmi'), accessKey: (inf.getAttribute('Id') || '').replace(/^NFe/, ''), items, xmlContent };
@@ -234,12 +251,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     </span>
                   </div>
                   <button
-                    onClick={() => onConfirmXmlEntry(stagedInvoice)}
-                    disabled={stagedInvoice.items.some(item => item.status !== 'linked')}
+                    onClick={() => stagedDraft && onConfirmXmlEntry(stagedDraft)}
+                    disabled={!stagedDraft || stagedDraft.items.some(item => !item.skuMatch?.trim() || !item.name.trim() || item.quantity <= 0 || (item.status !== 'linked' && item.salePrice === undefined))}
                     className="h-7 px-2.5 bg-[#004ac6] text-white rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[14px]">check</span>
-                    <span>{stagedInvoice.items.some(item => item.status !== 'linked') ? 'Vincule os itens' : 'Confirmar Entrada'}</span>
+                    <span>Confirmar Entrada</span>
                   </button>
                 </div>
               </div>
@@ -257,44 +274,47 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {stagedInvoice.items.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50/50">
-                        <td className="py-2.5 px-4 font-medium text-slate-900">{item.name}</td>
+                    {(stagedDraft || stagedInvoice).items.map((item) => (
+                      <React.Fragment key={item.id}>
+                      <tr className="hover:bg-slate-50/50">
+                        <td className="py-2.5 px-4 font-medium text-slate-900">{item.name}<span className="block text-[10px] text-slate-400 font-mono">Código: {item.skuMatch || '—'} · {item.category || 'Sem categoria'}</span></td>
                         <td className="py-2.5 px-4 text-center font-mono">{item.quantity} {item.unit}</td>
-                        <td className="py-2.5 px-4 text-right font-mono">
-                          R$ {item.unitPrice.toFixed(2).replace('.', ',')}
-                        </td>
+                        <td className="py-2.5 px-4 text-right font-mono">R$ {item.unitPrice.toFixed(2).replace('.', ',')}<span className="block text-[10px] text-slate-400">Venda: {item.salePrice !== undefined ? `R$ ${item.salePrice.toFixed(2).replace('.', ',')}` : 'não definida'}</span></td>
                         <td className="py-2.5 px-4 text-center">
                           {item.status === 'linked' ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
                               <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                              Vinculado ({item.skuMatch})
+                              Produto existente
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
                               <span className="material-symbols-outlined text-[13px]">help_outline</span>
-                              Não vinculado
+                              Novo cadastro
                             </span>
                           )}
                         </td>
                         <td className="py-2.5 px-4 text-right">
-                          {item.status === 'linked' ? (
-                            <button
-                              onClick={() => onLinkSkuModal(item)}
-                              className="text-slate-400 hover:text-slate-600 text-xs font-medium cursor-pointer"
-                            >
-                              Editar
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => onLinkSkuModal(item)}
-                              className="text-[#004ac6] hover:text-blue-700 font-medium text-xs cursor-pointer"
-                            >
-                              Vincular agora
-                            </button>
-                          )}
+                          <button type="button" onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)} className="text-[#004ac6] hover:text-blue-700 font-medium text-xs cursor-pointer">{expandedItem === item.id ? 'Fechar' : 'Cadastrar / editar'}</button>
                         </td>
                       </tr>
+                      {expandedItem === item.id && <tr className="bg-slate-50/70"><td colSpan={5} className="px-4 py-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <label className="text-[11px] text-slate-600">Código do produto<input value={item.skuMatch || ''} onChange={e=>updateStagedItem(item.id,{skuMatch:e.target.value.toUpperCase()})} className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md font-mono" /></label>
+                          <label className="text-[11px] text-slate-600 md:col-span-2">Descrição<input value={item.name} onChange={e=>updateStagedItem(item.id,{name:e.target.value})} className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md" /></label>
+                          <label className="text-[11px] text-slate-600">Categoria<input value={item.category || ''} onChange={e=>updateStagedItem(item.id,{category:e.target.value})} placeholder="Ex.: Ferramentas" className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md" /></label>
+                          <label className="text-[11px] text-slate-600">Quantidade recebida<input type="number" min="0.001" step="any" value={item.quantity} onChange={e=>updateStagedItem(item.id,{quantity:Number(e.target.value)})} className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md font-mono" /></label>
+                          <label className="text-[11px] text-slate-600">Unidade<input value={item.unit} onChange={e=>updateStagedItem(item.id,{unit:e.target.value})} className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md" /></label>
+                          <label className="text-[11px] text-slate-600">Custo unitário (R$)<input type="number" min="0" step="0.01" value={item.unitPrice} onChange={e=>updateStagedItem(item.id,{unitPrice:Number(e.target.value)})} className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md font-mono" /></label>
+                          <label className="text-[11px] text-slate-600">Preço de venda (R$)<input type="number" min="0" step="0.01" value={item.salePrice ?? ''} onChange={e=>updateStagedItem(item.id,{salePrice:e.target.value===''?undefined:Number(e.target.value)})} placeholder="Defina o preço" className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md font-mono" /></label>
+                          <label className="text-[11px] text-slate-600">Estoque mínimo<input type="number" min="0" step="any" value={item.minStock ?? 0} onChange={e=>updateStagedItem(item.id,{minStock:Number(e.target.value)})} className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md" /></label>
+                          <label className="text-[11px] text-slate-600">Estoque máximo<input type="number" min="0" step="any" value={item.maxStock ?? 0} onChange={e=>updateStagedItem(item.id,{maxStock:Number(e.target.value)})} className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md" /></label>
+                          <label className="text-[11px] text-slate-600">Foto do produto<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={e=>readItemPhoto(item.id,e.target.files?.[0])} className="mt-1 w-full text-[10px]" />{item.imageDataUrl && <span className="text-emerald-700">Foto pronta para salvar</span>}</label>
+                          <div className="flex items-center gap-2 pt-4"><input id={`fraction-${item.id}`} type="checkbox" checked={Boolean(item.allowFractional)} onChange={e=>updateStagedItem(item.id,{allowFractional:e.target.checked})} /><label htmlFor={`fraction-${item.id}`} className="text-[11px] text-slate-700">Permitir venda fracionada</label></div>
+                          {item.allowFractional && <label className="text-[11px] text-slate-600">Fração mínima<input type="number" min="0.001" step="any" value={item.fractionStep ?? 0.5} onChange={e=>updateStagedItem(item.id,{fractionStep:Number(e.target.value)})} className="mt-1 w-full h-8 px-2 border border-slate-200 rounded-md" /></label>}
+                        </div>
+                        <div className="flex justify-end mt-3"><button onClick={async()=>{if(!stagedDraft)return; try { await onStageXml(stagedDraft); setExpandedItem(null); onTriggerToast('Cadastro salvo','Os dados do item foram guardados junto da nota pendente.'); } catch { onTriggerToast('Erro ao salvar','Não foi possível guardar os dados do item.'); }}} className="h-8 px-3 bg-[#004ac6] text-white rounded-md text-xs font-medium">Salvar dados do item</button></div>
+                      </td></tr>}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>

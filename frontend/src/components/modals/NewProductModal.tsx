@@ -24,6 +24,8 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
   const [supplier, setSupplier] = useState('');
   const [image, setImage] = useState('');
   const [ncm, setNcm] = useState('');
+  const [allowFractional, setAllowFractional] = useState(false);
+  const [fractionStep, setFractionStep] = useState(0.5);
 
   if (!isOpen) return null;
 
@@ -43,6 +45,8 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
       image,
       costPrice,
       salePrice,
+      allowFractional,
+      fractionStep: allowFractional ? fractionStep : 1,
       status: stock > 20 ? 'ok' : stock > 0 ? 'low' : 'out',
       icon: 'inventory_2',
       iconBg: 'bg-blue-50',
@@ -169,6 +173,12 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
                 className="w-full h-8 px-2.5 bg-white border border-slate-200 rounded font-mono font-bold text-[#004ac6]"
               />
             </div>
+          </div>
+
+          <div className="flex items-center gap-3 text-xs">
+            <input id="new-fractional" type="checkbox" checked={allowFractional} onChange={e=>setAllowFractional(e.target.checked)} />
+            <label htmlFor="new-fractional" className="text-slate-700">Este produto pode ser vendido fracionado</label>
+            {allowFractional && <input aria-label="Fração mínima de venda" type="number" min="0.001" step="any" value={fractionStep} onChange={e=>setFractionStep(Number(e.target.value))} className="w-24 h-8 px-2 border rounded-md" />}
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">

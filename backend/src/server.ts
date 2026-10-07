@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middlewares
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // CORS Middleware
 app.use((req: Request, res: Response, next: NextFunction) => {

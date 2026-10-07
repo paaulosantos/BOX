@@ -134,7 +134,8 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
               <label className="block font-medium text-slate-700 mb-1">Quantidade</label>
               <input
                 type="number"
-                min="1"
+                min={currentProduct?.allowFractional ? currentProduct.fractionStep || 0.5 : 1}
+                step={currentProduct?.allowFractional ? currentProduct.fractionStep || 0.5 : 1}
                 required
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
