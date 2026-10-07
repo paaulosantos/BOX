@@ -203,6 +203,7 @@ export default function App() {
               onOpenStockAdjustModal={() => setIsStockAdjustOpen(true)}
               recentMovements={movements}
               products={products}
+              invoices={invoices}
             />
           )}
 
@@ -226,6 +227,7 @@ export default function App() {
             <InventoryView
               movements={movements}
               transfers={transfers}
+              products={products}
               onOpenStockAdjustModal={() => setIsStockAdjustOpen(true)}
               onOpenNewTransferModal={() => setIsNewTransferOpen(true)}
               onOpenTransferDetailModal={(t) => setSelectedTransfer(t)}
