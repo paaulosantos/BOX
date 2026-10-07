@@ -17,8 +17,8 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   onEmitInvoice,
 }) => {
   const [docType, setDocType] = useState<'NF-e' | 'NFC-e'>(docTypeDefault);
-  const [partyName, setPartyName] = useState('Distribuidora Nacional de Peças SA');
-  const [taxId, setTaxId] = useState('02.481.992/0001-30');
+  const [partyName, setPartyName] = useState('');
+  const [taxId, setTaxId] = useState('');
   const [selectedProductId, setSelectedProductId] = useState(products[0]?.id || '');
   const [quantity, setQuantity] = useState(10);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -32,24 +32,24 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
     e.preventDefault();
     setIsProcessing(true);
 
-    setTimeout(() => {
-      setIsProcessing(false);
-      const randomNum = Math.floor(Math.random() * 900) + 100;
+    try {
       onEmitInvoice({
-        number: `${docType} 000.010.${randomNum}`,
+        number: `RASCUNHO-${Date.now()}`,
         series: docType === 'NF-e' ? 'Série 1' : 'Série 2',
         type: 'Saída',
         partyName,
         taxId,
         date: 'Hoje, ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         amount,
-        status: 'Autorizada',
-        accessKey: '3524 ' + Array.from({ length: 10 }, () => Math.floor(Math.random() * 9000) + 1000).join(' '),
+        status: 'Processando',
+        accessKey: '',
         docType,
         xmlAvailable: true,
       });
+    } finally {
+      setIsProcessing(false);
       onClose();
-    }, 800);
+    }
   };
 
   return (
@@ -60,7 +60,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
             <h3 className="text-base font-bold text-slate-900">
               {docType === 'NFC-e' ? 'Emitir NFC-e (Cupom Fiscal)' : 'Emitir Nota Fiscal Eletrônica (NF-e)'}
             </h3>
-            <p className="text-xs text-slate-500">Transmissão em tempo real e assinatura com Certificado A1</p>
+            <p className="text-xs text-slate-500">Salva um rascunho interno. A transmissão para a SEFAZ não está configurada.</p>
           </div>
           <button
             onClick={onClose}

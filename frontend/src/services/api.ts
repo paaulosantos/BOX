@@ -39,6 +39,11 @@ export const api = {
     return res.data;
   },
 
+  async updateProduct(id: string, data: Partial<Product>): Promise<Product> {
+    const res = await request<{success:boolean;data:Product}>(`/products/${id}`, {method:'PUT',body:JSON.stringify(data)});
+    return res.data;
+  },
+
   async adjustStock(
     productId: string,
     newStock: number,
@@ -120,6 +125,11 @@ export const api = {
 
   async getStagedInvoice(): Promise<StagedInvoice | null> {
     const res = await request<{ success: boolean; data: StagedInvoice | null }>(`/invoices/staged`);
+    return res.data;
+  },
+
+  async stageInvoice(data: StagedInvoice): Promise<StagedInvoice> {
+    const res = await request<{ success: boolean; data: StagedInvoice }>(`/invoices/staged`, { method: 'POST', body: JSON.stringify(data) });
     return res.data;
   },
 

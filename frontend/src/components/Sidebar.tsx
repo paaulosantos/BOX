@@ -11,8 +11,8 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView,
   onNavigate,
-  stockAlertCount = 24,
-  pendingInvoiceCount = 2,
+  stockAlertCount = 0,
+  pendingInvoiceCount = 0,
 }) => {
   const menuItems: { id: ViewType; label: string; icon: string; badge?: number; badgeColor?: string }[] = [
     { id: 'dashboard', label: 'Visão Geral', icon: 'dashboard' },
@@ -70,21 +70,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* SEFAZ Status at Bottom */}
-      <div className="px-4">
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="text-[11px] font-medium text-slate-700">SEFAZ Operacional</span>
-          </div>
-          <span className="text-[10px] text-slate-400 font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200">
-            Amb. Prod
-          </span>
-        </div>
-      </div>
     </aside>
   );
 };

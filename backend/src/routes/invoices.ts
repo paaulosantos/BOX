@@ -1,12 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../data/store';
+import type { StagedInvoice } from '../types';
 
 const router = Router();
 
 // GET /api/invoices - List invoices
-router.get('/', (_req: Request, res: Response) => {
+router.get('/', async (_req: Request, res: Response) => {
   try {
-    const invoices = db.getInvoices();
+    const invoices = await db.getInvoices();
     res.json({ success: true, data: invoices });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -14,9 +15,9 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 // GET /api/invoices/staged - Current XML import in staging
-router.get('/staged', (_req: Request, res: Response) => {
+router.get('/staged', async (_req: Request, res: Response) => {
   try {
-    const staged = db.getStagedInvoice();
+    const staged = await db.getStagedInvoice();
     res.json({ success: true, data: staged });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -24,14 +25,14 @@ router.get('/staged', (_req: Request, res: Response) => {
 });
 
 // POST /api/invoices/staged/link-sku - Link SKU to staged item
-router.post('/staged/link-sku', (req: Request, res: Response) => {
+router.post('/staged/link-sku', async (req: Request, res: Response) => {
   try {
     const { itemId, sku } = req.body;
     if (!itemId || !sku) {
       return res.status(400).json({ success: false, message: 'itemId e sku são obrigatórios' });
     }
 
-    const updated = db.linkStagedItemSku(itemId, sku);
+    const updated = await db.linkStagedItemSku(itemId, sku);
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Nenhuma nota em estágio encontrada' });
     }
@@ -42,15 +43,25 @@ router.post('/staged/link-sku', (req: Request, res: Response) => {
   }
 });
 
-// POST /api/invoices/staged/confirm - Confirm XML entry into physical inventory
-router.post('/staged/confirm', (req: Request, res: Response) => {
+// POST /api/invoices/staged - persist XML data parsed by the browser
+router.post('/staged', async (req: Request, res: Response) => {
   try {
-    const staged = req.body.staged || db.getStagedInvoice();
+    const staged = req.body as StagedInvoice;
+    if (!staged?.invoiceNumber || !Array.isArray(staged.items)) return res.status(400).json({ success:false, message:'XML inválido ou sem itens.' });
+    await db.setStagedInvoice(staged);
+    res.status(201).json({ success:true, data:staged });
+  } catch (error:any) { res.status(500).json({success:false,message:error.message}); }
+});
+
+// POST /api/invoices/staged/confirm - Confirm XML entry into physical inventory
+router.post('/staged/confirm', async (req: Request, res: Response) => {
+  try {
+    const staged = req.body.staged || await db.getStagedInvoice();
     if (!staged) {
       return res.status(400).json({ success: false, message: 'Nenhuma nota staged para confirmar' });
     }
 
-    const result = db.confirmXmlEntry(staged);
+    const result = await db.confirmXmlEntry(staged);
     res.json({
       success: true,
       message: 'Entrada confirmada e estoque atualizado',
@@ -62,7 +73,7 @@ router.post('/staged/confirm', (req: Request, res: Response) => {
 });
 
 // POST /api/invoices - Emit new NF-e / NFC-e
-router.post('/', (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const {
       docType,
@@ -73,31 +84,26 @@ router.post('/', (req: Request, res: Response) => {
       type
     } = req.body;
 
-    const cleanTax = taxId || '00.000.000/0001-00';
-    const numDigits = Math.floor(10000 + Math.random() * 90000);
-    const invNumber = `${docType || 'NF-e'} 000.0${numDigits}`;
-    const accessKey = `3524 10${Math.floor(10000000000000 + Math.random() * 90000000000000)} 5500 1000 0${numDigits} 1234 5678 9012`;
-
     const now = new Date();
-    const dateStr = 'Hoje, ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = now.toLocaleString('pt-BR');
 
-    const newInv = db.addInvoice({
-      number: invNumber,
+    const newInv = await db.addInvoice({
+      number: req.body.number || `RASCUNHO-${Date.now()}`,
       series: series || 'Série 1',
       type: type || 'Saída',
       docType: docType || 'NF-e',
       partyName: partyName || 'Consumidor Final',
-      taxId: cleanTax,
+      taxId: taxId || '',
       date: dateStr,
       amount: Number(amount) || 0,
-      status: 'Autorizada',
-      accessKey,
-      xmlAvailable: true
+      status: 'Processando',
+      accessKey: req.body.accessKey || '',
+      xmlAvailable: false
     });
 
     res.status(201).json({
       success: true,
-      message: `${newInv.docType} Autorizada com Sucesso na SEFAZ`,
+      message: 'Documento salvo como rascunho; transmissão SEFAZ não configurada.',
       data: newInv
     });
   } catch (error: any) {
@@ -106,7 +112,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 // POST /api/invoices/consult-key - Consult key in SEFAZ
-router.post('/consult-key', (req: Request, res: Response) => {
+router.post('/consult-key', async (req: Request, res: Response) => {
   try {
     const { key } = req.body;
     if (!key) {
@@ -122,12 +128,8 @@ router.post('/consult-key', (req: Request, res: Response) => {
       success: true,
       data: {
         accessKey: key,
-        status: 'Autorizada',
-        sefazStatus: '100 - Autorizado o uso da NF-e',
-        uf: 'SP',
-        environment: 'Produção',
-        protocol: `13524000${Math.floor(10000000 + Math.random() * 90000000)}`,
-        authDate: new Date().toISOString()
+        status: 'Consulta indisponível',
+        message: 'A integração de consulta à SEFAZ não está configurada neste sistema.'
       }
     });
   } catch (error: any) {
@@ -135,75 +137,16 @@ router.post('/consult-key', (req: Request, res: Response) => {
   }
 });
 
-// GET /api/invoices/:id/xml - Generate/Download XML
-router.get('/:id/xml', (req: Request, res: Response) => {
+// GET /api/invoices/:id/xml - return the original XML that was imported
+router.get('/:id/xml', async (req: Request, res: Response) => {
   try {
-    const invoices = db.getInvoices();
-    const inv = invoices.find(i => i.id === req.params.id);
-    if (!inv) {
-      return res.status(404).json({ success: false, message: 'Nota fiscal não encontrada' });
-    }
-
-    const cleanKey = inv.accessKey.replace(/\s/g, '');
-    const cleanNum = inv.number.replace(/\D/g, '');
-
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
-  <NFe>
-    <infNFe Id="NFe${cleanKey}" versao="4.00">
-      <ide>
-        <cUF>35</cUF>
-        <cNF>08472918</cNF>
-        <natOp>Venda de Mercadorias</natOp>
-        <mod>${inv.docType === 'NFC-e' ? '65' : '55'}</mod>
-        <serie>1</serie>
-        <nNF>${cleanNum}</nNF>
-        <dhEmi>${new Date().toISOString()}</dhEmi>
-        <tpNF>${inv.type === 'Entrada' ? '0' : '1'}</tpNF>
-        <idDest>1</idDest>
-        <cMunFG>3550308</cMunFG>
-        <tpImp>1</tpImp>
-        <tpEmis>1</tpEmis>
-        <tpAmb>1</tpAmb>
-        <finNFe>1</finNFe>
-      </ide>
-      <emit>
-        <CNPJ>12345678000190</CNPJ>
-        <xNome>NexStock Logística e Tecnologia LTDA</xNome>
-        <xFant>NexStock</xFant>
-        <IE>112233445566</IE>
-        <CRT>3</CRT>
-      </emit>
-      <dest>
-        <CNPJ>${inv.taxId.replace(/\D/g, '')}</CNPJ>
-        <xNome>${inv.partyName}</xNome>
-      </dest>
-      <total>
-        <ICMSTot>
-          <vNF>${inv.amount.toFixed(2)}</vNF>
-        </ICMSTot>
-      </total>
-    </infNFe>
-  </NFe>
-  <protNFe versao="4.00">
-    <infProt>
-      <tpAmb>1</tpAmb>
-      <verAplic>SP_NFE_PL_009_V4</verAplic>
-      <chNFe>${cleanKey}</chNFe>
-      <dhRecbto>${new Date().toISOString()}</dhRecbto>
-      <nProt>135240001234567</nProt>
-      <cStat>100</cStat>
-      <xMotivo>Autorizado o uso da NF-e</xMotivo>
-    </infProt>
-  </protNFe>
-</nfeProc>`;
-
-    res.setHeader('Content-Type', 'application/xml');
-    res.setHeader('Content-Disposition', `attachment; filename="${inv.number.replace(/\s+/g, '_')}.xml"`);
-    res.send(xml);
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
+    const invoice = await db.getInvoice(req.params.id);
+    if (!invoice) return res.status(404).json({success:false,message:'Nota fiscal não encontrada'});
+    if (!invoice.xmlContent) return res.status(404).json({success:false,message:'O XML original não está armazenado para esta nota.'});
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.number.replace(/[^a-zA-Z0-9_-]/g, '_')}.xml"`);
+    res.send(invoice.xmlContent);
+  } catch (error: any) { res.status(500).json({success:false,message:error.message}); }
 });
 
 export default router;

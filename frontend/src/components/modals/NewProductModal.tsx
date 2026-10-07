@@ -14,12 +14,16 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
-  const [category, setCategory] = useState('Informática');
-  const [stock, setStock] = useState<number>(100);
+  const [category, setCategory] = useState('Geral');
+  const [stock, setStock] = useState<number>(0);
   const [unit, setUnit] = useState('un');
-  const [costPrice, setCostPrice] = useState<number>(150);
-  const [salePrice, setSalePrice] = useState<number>(249.9);
-  const [ncm, setNcm] = useState('8542.31.90');
+  const [minStock, setMinStock] = useState<number>(0);
+  const [maxStock, setMaxStock] = useState<number>(0);
+  const [costPrice, setCostPrice] = useState<number>(0);
+  const [salePrice, setSalePrice] = useState<number>(0);
+  const [supplier, setSupplier] = useState('');
+  const [image, setImage] = useState('');
+  const [ncm, setNcm] = useState('');
 
   if (!isOpen) return null;
 
@@ -33,7 +37,10 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
       category,
       stock,
       unit,
-      minStock: 20,
+      minStock,
+      maxStock,
+      supplier,
+      image,
       costPrice,
       salePrice,
       status: stock > 20 ? 'ok' : stock > 0 ? 'low' : 'out',
@@ -41,8 +48,8 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
       iconBg: 'bg-blue-50',
       iconColor: 'text-primary',
       ncm,
-      icms: '18%',
-      cfop: '5102',
+      icms: '',
+      cfop: '',
     });
     onClose();
   };
@@ -105,9 +112,9 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-medium text-slate-700 mb-1">Estoque Inicial</label>
+              <label className="block font-medium text-slate-700 mb-1">Estoque Atual</label>
               <input
                 type="number"
                 min="0"
@@ -128,15 +135,15 @@ export const NewProductModal: React.FC<NewProductModalProps> = ({
                 className="w-full h-9 px-3 border border-slate-200 rounded-lg focus:outline-none focus:border-[#004ac6]"
               />
             </div>
-            <div>
-              <label className="block font-medium text-slate-700 mb-1">NCM Fiscal</label>
-              <input
-                type="text"
-                value={ncm}
-                onChange={(e) => setNcm(e.target.value)}
-                className="w-full h-9 px-3 border border-slate-200 rounded-lg font-mono focus:outline-none focus:border-[#004ac6]"
-              />
-            </div>
+            <div><label className="block font-medium text-slate-700 mb-1">Alerta de estoque baixo</label><input type="number" min="0" value={minStock} onChange={e=>setMinStock(Number(e.target.value))} className="w-full h-9 px-3 border border-slate-200 rounded-lg" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block font-medium text-slate-700 mb-1">Estoque máximo</label><input type="number" min="0" value={maxStock} onChange={e=>setMaxStock(Number(e.target.value))} className="w-full h-9 px-3 border border-slate-200 rounded-lg" /></div>
+            <div><label className="block font-medium text-slate-700 mb-1">Fornecedor</label><input type="text" value={supplier} onChange={e=>setSupplier(e.target.value)} className="w-full h-9 px-3 border border-slate-200 rounded-lg" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block font-medium text-slate-700 mb-1">Foto do produto (URL)</label><input type="url" value={image} onChange={e=>setImage(e.target.value)} className="w-full h-9 px-3 border border-slate-200 rounded-lg" /></div>
+            <div><label className="block font-medium text-slate-700 mb-1">NCM</label><input type="text" value={ncm} onChange={e=>setNcm(e.target.value)} className="w-full h-9 px-3 border border-slate-200 rounded-lg font-mono" /></div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200/60">

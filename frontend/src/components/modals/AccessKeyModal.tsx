@@ -18,14 +18,12 @@ export const AccessKeyModal: React.FC<AccessKeyModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accessKey.trim()) return;
+    if (accessKey.replace(/\D/g, '').length !== 44) return;
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      onConsultKey(accessKey);
-      setAccessKey('');
-      onClose();
-    }, 600);
+    onConsultKey(accessKey);
+    setLoading(false);
+    setAccessKey('');
+    onClose();
   };
 
   const handleFormatKey = (value: string) => {
@@ -49,7 +47,7 @@ export const AccessKeyModal: React.FC<AccessKeyModalProps> = ({
           </button>
         </div>
         <p className="text-xs text-slate-500">
-          Insira a chave de 44 dígitos da NF-e para consultar o status diretamente na SEFAZ e baixar o XML.
+          Informe uma chave de 44 dígitos para validar o formato. A consulta direta à SEFAZ ainda não está conectada.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -67,13 +65,7 @@ export const AccessKeyModal: React.FC<AccessKeyModalProps> = ({
 
           <div className="flex items-center justify-between text-[11px] text-slate-400">
             <span>Dígitos inseridos: {accessKey.replace(/\s/g, '').length} / 44</span>
-            <button
-              type="button"
-              onClick={() => handleFormatKey("35241012345678000190550010000482911234567892")}
-              className="text-[#004ac6] hover:underline cursor-pointer"
-            >
-              Preencher exemplo
-            </button>
+            <span>Formato da NF-e: 44 dígitos</span>
           </div>
 
           <div className="flex items-center justify-end gap-2 mt-2">

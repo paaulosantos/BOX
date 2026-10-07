@@ -14,7 +14,11 @@ export interface Product {
   minStock: number;
   costPrice: number;
   salePrice: number;
-  status: 'ok' | 'low' | 'out';
+  image?: string;
+  supplier?: string;
+  invoiceNumber?: string;
+  maxStock?: number;
+  status: 'ok' | 'low' | 'out' | 'high';
   icon: string;
   iconBg: string;
   iconColor: string;
@@ -66,10 +70,11 @@ export interface Invoice {
   taxId: string;
   date: string;
   amount: number;
-  status: 'Autorizada' | 'Processando' | 'Cancelada' | 'Contingência';
+  status: 'Autorizada' | 'Importada' | 'Processando' | 'Cancelada' | 'Contingência';
   accessKey: string;
   xmlAvailable: boolean;
   cancellationReason?: string;
+  xmlContent?: string;
 }
 
 export interface StagedXmlItem {
@@ -92,4 +97,5 @@ export interface StagedInvoice {
   issueDate: string;
   accessKey: string;
   items: StagedXmlItem[];
+  xmlContent?: string;
 }

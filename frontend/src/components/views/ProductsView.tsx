@@ -18,11 +18,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   onOpenImportModal,
   searchQuery,
 }) => {
-  const [filterTab, setFilterTab] = useState<'all' | 'low' | 'out'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'low' | 'out' | 'high'>('all');
   const [localSearch, setLocalSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
+  const stocked = products.filter(p => p.stock > 0).length;
+  const alerts = products.filter(p => p.status === 'low' || p.status === 'out').length;
+  const low = products.filter(p => p.status === 'low').length;
+  const out = products.filter(p => p.status === 'out').length;
+  const high = products.filter(p => p.status === 'high').length;
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
@@ -34,9 +39,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       if (!matchesSearch) return false;
       if (filterTab === 'low') return p.status === 'low';
       if (filterTab === 'out') return p.status === 'out';
+      if (filterTab === 'high') return p.status === 'high';
       return true;
     });
   }, [products, effectiveSearch, filterTab]);
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const paginatedProducts = filteredProducts.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-8 space-y-8 select-none">
@@ -65,16 +74,20 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       </div>
 
       {/* 3 Métricas Rápidas e Limpas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total de Produtos</span>
             <span className="material-symbols-outlined text-slate-400">inventory_2</span>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900 tracking-tight font-mono">2.840</span>
+            <span className="text-3xl font-bold text-slate-900 tracking-tight font-mono">{products.length}</span>
             <span className="text-xs font-medium text-slate-400">SKUs cadastrados</span>
           </div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500"><span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Estoque acima do máximo</span><span className="material-symbols-outlined text-blue-500">trending_up</span></div>
+          <div className="mt-4"><span className="text-3xl font-bold text-blue-600 font-mono">{high}</span><span className="text-xs text-slate-500 ml-2">produtos</span></div>
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.02)] flex flex-col justify-between">
@@ -83,9 +96,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <span className="material-symbols-outlined text-emerald-500">check_circle</span>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-emerald-600 tracking-tight font-mono">2.816</span>
+            <span className="text-3xl font-bold text-emerald-600 tracking-tight font-mono">{stocked}</span>
             <span className="text-xs font-medium text-emerald-700/80 bg-emerald-50 px-2 py-0.5 rounded-full">
-              99.1% disponível
+              produtos com saldo
             </span>
           </div>
         </div>
@@ -96,9 +109,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <span className="material-symbols-outlined text-amber-500">error_outline</span>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-amber-600 tracking-tight font-mono">24</span>
+            <span className="text-3xl font-bold text-amber-600 tracking-tight font-mono">{alerts}</span>
             <span className="text-xs font-medium text-amber-700/80 bg-amber-50 px-2 py-0.5 rounded-full">
-              18 baixos • 6 zerados
+              {low} baixos • {out} zerados
             </span>
           </div>
         </div>
@@ -152,6 +165,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           >
             Sem Estoque
           </button>
+          <button onClick={()=>setFilterTab('high')} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${filterTab==='high'?'text-slate-800 bg-white shadow-xs font-semibold':'text-slate-500 hover:text-slate-800'}`}>Estoque Alto</button>
         </div>
       </div>
 
@@ -162,7 +176,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 <th className="py-4 px-6">Produto</th>
-                <th className="py-4 px-6">Categoria</th>
+              <th className="py-4 px-6">Categoria</th>
+              <th className="py-4 px-6">Fornecedor / Nota</th>
                 <th className="py-4 px-6">Saldo em Estoque</th>
                 <th className="py-4 px-6 text-right">Preço de Custo</th>
                 <th className="py-4 px-6 text-right">Preço de Venda</th>
@@ -172,19 +187,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <tbody className="divide-y divide-slate-100 text-sm font-medium">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
+                  <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
                     Nenhum produto encontrado com os filtros atuais.
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((prod) => (
+                paginatedProducts.map((prod) => (
                   <tr key={prod.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
                         <div
                           className={`w-10 h-10 rounded-xl ${prod.iconBg} ${prod.iconColor} flex items-center justify-center flex-shrink-0`}
                         >
-                          <span className="material-symbols-outlined text-xl">{prod.icon}</span>
+                          {prod.image ? <img src={prod.image} alt={prod.name} className="w-full h-full object-cover rounded-xl" /> : <span className="material-symbols-outlined text-xl">{prod.icon}</span>}
                         </div>
                         <div className="flex flex-col">
                           <span className="font-semibold text-slate-800 text-sm">{prod.name}</span>
@@ -194,6 +209,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     </td>
 
                     <td className="py-4 px-6 text-slate-500 font-normal">{prod.category}</td>
+                    <td className="py-4 px-6 text-slate-500 font-normal"><div>{prod.supplier || '—'}</div><div className="text-[11px] text-slate-400">{prod.invoiceNumber || 'Sem nota de entrada'}</div></td>
 
                     <td className="py-4 px-6">
                       {prod.status === 'ok' && (
@@ -214,6 +230,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           <span>Sem estoque</span>
                         </div>
                       )}
+                      {prod.status === 'high' && <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700"><span>{prod.stock} {prod.unit} (acima do máximo)</span></div>}
                     </td>
 
                     <td className="py-4 px-6 text-right font-normal text-slate-600 font-mono">
@@ -249,48 +266,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           </table>
         </div>
 
-        {/* Paginação Sutil */}
-        <div className="py-4 px-6 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <span>Mostrando {filteredProducts.length} de 2.840 itens</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium transition-colors disabled:opacity-40"
-            >
-              Anterior
-            </button>
-            <button
-              onClick={() => setCurrentPage(1)}
-              className={`px-3 py-1.5 rounded-lg font-medium shadow-xs transition-colors ${
-                currentPage === 1 ? 'bg-[#FF8500] text-white' : 'hover:bg-slate-50 text-slate-600'
-              }`}
-            >
-              1
-            </button>
-            <button
-              onClick={() => setCurrentPage(2)}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                currentPage === 2 ? 'bg-[#FF8500] text-white' : 'hover:bg-slate-50 text-slate-600'
-              }`}
-            >
-              2
-            </button>
-            <button
-              onClick={() => setCurrentPage(3)}
-              className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                currentPage === 3 ? 'bg-[#FF8500] text-white' : 'hover:bg-slate-50 text-slate-600'
-              }`}
-            >
-              3
-            </button>
-            <button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium transition-colors"
-            >
-              Próxima
-            </button>
-          </div>
+        <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <span>{filteredProducts.length ? `Exibindo ${(currentPage - 1) * pageSize + 1} a ${Math.min(currentPage * pageSize, filteredProducts.length)} de ${filteredProducts.length} itens` : `0 itens`}</span>
+          <div className="flex gap-2"><button onClick={()=>setCurrentPage(p=>Math.max(1,p-1))} disabled={currentPage===1} className="px-3 py-1.5 border rounded disabled:opacity-40">Anterior</button><span className="px-3 py-1.5">Página {currentPage} de {pageCount}</span><button onClick={()=>setCurrentPage(p=>Math.min(pageCount,p+1))} disabled={currentPage>=pageCount} className="px-3 py-1.5 border rounded disabled:opacity-40">Próxima</button></div>
         </div>
       </div>
     </div>

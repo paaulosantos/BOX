@@ -3,12 +3,15 @@ import productsRouter from './routes/products';
 import movementsRouter from './routes/movements';
 import transfersRouter from './routes/transfers';
 import invoicesRouter from './routes/invoices';
+import { db, databasePath } from './data/store';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middlewares
-app.use(express.json());
+app.use(express.json({ limit: '12mb' }));
 
 // CORS Middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -43,7 +46,9 @@ app.use('/api/transfers', transfersRouter);
 app.use('/api/invoices', invoicesRouter);
 
 // Start server
-app.listen(PORT, () => {
+const dataDir = path.resolve(databasePath);
+fs.mkdirSync(path.dirname(dataDir), { recursive: true });
+db.init().then(() => app.listen(PORT, () => {
   console.log(`⚡ [Backend] Servidor NexStock ERP rodando em http://localhost:${PORT}`);
   console.log(`📡 Endpoints disponíveis:`);
   console.log(`   - GET  /api/health`);
@@ -51,6 +56,6 @@ app.listen(PORT, () => {
   console.log(`   - REST /api/movements`);
   console.log(`   - REST /api/transfers`);
   console.log(`   - REST /api/invoices`);
-});
+})).catch(error => { console.error('[Backend] Não foi possível inicializar SQLite:', error); process.exit(1); });
 
 export default app;

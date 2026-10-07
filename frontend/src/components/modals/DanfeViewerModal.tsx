@@ -23,7 +23,7 @@ export const DanfeViewerModal: React.FC<DanfeViewerModalProps> = ({
             <span className="material-symbols-outlined text-blue-400">description</span>
             <div>
               <span className="font-semibold text-sm">
-                {invoice.docType === 'NFC-e' ? 'DANFE NFC-e - Documento Auxiliar' : 'DANFE NF-e - Documento Auxiliar da Nota Fiscal'}
+                Detalhes do documento (não fiscal)
               </span>
               <span className="text-[11px] text-slate-400 block font-mono">{invoice.number} • {invoice.series}</span>
             </div>
@@ -45,21 +45,21 @@ export const DanfeViewerModal: React.FC<DanfeViewerModalProps> = ({
           </div>
         </div>
 
-        {/* Printable Simulated DANFE Container */}
+        {/* Document Details */}
         <div className="p-6 overflow-y-auto space-y-4 font-sans text-slate-800 text-xs bg-slate-50/50">
           {/* Header Box */}
           <div className="border border-slate-300 bg-white p-4 rounded-lg">
             <div className="flex justify-between items-start border-b border-slate-200 pb-3 mb-3">
               <div>
-                <h4 className="font-bold text-sm text-slate-900 uppercase">Box Distribuição e Logística LTDA</h4>
-                <p className="text-[11px] text-slate-500">Av. Paulista, 1000 - Bela Vista - São Paulo - SP</p>
-                <p className="text-[11px] text-slate-500 font-mono">CNPJ: 10.450.880/0001-22 • IE: 114.590.221.110</p>
+                <h4 className="font-bold text-sm text-slate-900 uppercase">Documento registrado no sistema</h4>
+                <p className="text-[11px] text-slate-500">Este painel mostra apenas os dados armazenados localmente.</p>
+                <p className="text-[11px] text-slate-500 font-mono">Não representa uma DANFE nem comprova autorização fiscal.</p>
               </div>
               <div className="text-right">
                 <span className="inline-block px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 rounded text-xs uppercase">
-                  SEFAZ: Protocolo Autorizado
+                  Status: {invoice.status}
                 </span>
-                <p className="text-[10px] text-slate-400 mt-1 font-mono">Prot: 135240098442110</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono"></p>
               </div>
             </div>
 
@@ -92,7 +92,7 @@ export const DanfeViewerModal: React.FC<DanfeViewerModalProps> = ({
               </div>
               <div>
                 <span className="text-slate-400 block text-[10px]">Natureza da Operação</span>
-                <span className="font-medium text-slate-700">Venda de mercadoria adquirida (CFOP 5102)</span>
+                <span className="font-medium text-slate-700">{invoice.type === 'Entrada' ? 'Entrada' : 'Saída'}</span>
               </div>
             </div>
           </div>
@@ -103,17 +103,9 @@ export const DanfeViewerModal: React.FC<DanfeViewerModalProps> = ({
               Cálculo do Imposto &amp; Totais
             </span>
             <div className="grid grid-cols-4 gap-2 text-center text-xs">
-              <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                <span className="text-[10px] text-slate-400 block">Base Cálc. ICMS</span>
-                <span className="font-mono font-semibold">R$ {(invoice.amount * 0.82).toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                <span className="text-[10px] text-slate-400 block">Valor do ICMS</span>
-                <span className="font-mono font-semibold text-blue-700">R$ {(invoice.amount * 0.18).toFixed(2).replace('.', ',')}</span>
-              </div>
-              <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                <span className="text-[10px] text-slate-400 block">Valor do Frete</span>
-                <span className="font-mono font-semibold">R$ 0,00</span>
+              <div className="bg-slate-50 p-2 rounded border border-slate-100 col-span-3">
+                <span className="text-[10px] text-slate-400 block">Modelo</span>
+                <span className="font-mono font-semibold">{invoice.docType}</span>
               </div>
               <div className="bg-blue-50/60 p-2 rounded border border-blue-200">
                 <span className="text-[10px] text-[#004ac6] font-bold block">Valor Total da Nota</span>
@@ -127,7 +119,7 @@ export const DanfeViewerModal: React.FC<DanfeViewerModalProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-white border-t border-slate-200 flex items-center justify-between">
-          <span className="text-[11px] text-slate-400">Emissão Eletrônica Autorizada pela SEFAZ Nacional</span>
+          <span className="text-[11px] text-slate-400">Documento interno; não transmitido à SEFAZ.</span>
           <button
             onClick={onClose}
             className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"

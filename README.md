@@ -1,6 +1,6 @@
 # Box ERP)
 
-Sistema moderno e integrado para gestão de estoque, controle de transferências entre filiais, conferência/importação de XML e emissão fiscal (NF-e e NFC-e).
+Sistema de gestão de produtos, estoque e entrada de notas fiscais XML. Os dados são armazenados em SQLite usando Sequelize; a base começa vazia.
 
 ## Arquitetura Separada (Backend + Frontend)
 
@@ -16,7 +16,7 @@ nexstock-erp/
 │   │   │   ├── transfers.ts  # Endpoints de transferências entre filiais
 │   │   │   └── invoices.ts   # Endpoints de notas fiscais, XML e SEFAZ
 │   │   ├── data/
-│   │   │   └── store.ts      # Store em memória reativo e dados iniciais
+│   │   │   └── store.ts      # Modelos Sequelize e acesso ao SQLite
 │   │   ├── types.ts          # Definições de tipos de dados do domínio
 │   │   └── server.ts         # Ponto de entrada Express (porta 3001)
 │   ├── package.json
@@ -54,6 +54,12 @@ npm run dev
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:3001
 
+O banco é criado automaticamente em `backend/data/box.sqlite` na primeira inicialização. Esse arquivo é local e fica fora do Git. Para usar outro caminho, defina `DATABASE_PATH` no ambiente do backend.
+
+O sistema não carrega produtos ou notas de demonstração. Cadastros, ajustes de saldo, importações e confirmações ficam persistidos localmente. Ao importar uma NF-e, revise os produtos e vincule os códigos antes de confirmar; a confirmação atualiza os saldos e grava as movimentações e o XML original.
+
+Os recursos de transmissão e consulta à SEFAZ não estão conectados. O formulário de emissão grava apenas um rascunho interno; ele não autoriza documentos fiscais.
+
 ### 2. Iniciar Apenas o Backend
 ```bash
 npm run dev:backend
@@ -88,6 +94,7 @@ npm run lint
 | `GET` | `/api/products` | Lista produtos (com filtros de busca e categoria) |
 | `GET` | `/api/products/:id` | Detalhes de um produto |
 | `POST` | `/api/products` | Cadastra novo produto |
+| `PUT` | `/api/products/:id` | Atualiza o cadastro do produto |
 | `PATCH` | `/api/products/:id/stock` | Ajuste de saldo físico (gera movimentação automática) |
 | `PATCH` | `/api/products/:id/fiscal` | Atualiza NCM, ICMS e CFOP |
 | `GET` | `/api/movements` | Histórico de movimentações (filtro por filial) |
@@ -99,6 +106,7 @@ npm run lint
 | `POST` | `/api/invoices` | Emite nova NF-e ou NFC-e |
 | `GET` | `/api/invoices/:id/xml` | Download do arquivo XML da nota fiscal |
 | `GET` | `/api/invoices/staged` | Dados da nota pendente de importação XML |
+| `POST` | `/api/invoices/staged` | Salva uma prévia XML para conferência |
 | `POST` | `/api/invoices/staged/link-sku` | Vincula item do XML a SKU do estoque |
 | `POST` | `/api/invoices/staged/confirm` | Confirma entrada física da nota e gera movimentação |
 | `POST` | `/api/invoices/consult-key` | Consulta status de chave de acesso na SEFAZ |

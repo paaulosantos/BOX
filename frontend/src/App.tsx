@@ -1,12 +1,5 @@
 import { useState, useEffect } from 'react';
 import { ViewType, Product, StockMovement, Transfer, Invoice, StagedInvoice, ToastMessage } from './types';
-import {
-  INITIAL_PRODUCTS,
-  INITIAL_MOVEMENTS,
-  INITIAL_TRANSFERS,
-  INITIAL_INVOICES,
-  STAGED_INVOICE_DEFAULT,
-} from './data/initialData';
 import { api } from './services/api';
 
 import { Header } from './components/Header';
@@ -29,19 +22,19 @@ import { NewTransferModal } from './components/modals/NewTransferModal';
 import { TransferDetailModal } from './components/modals/TransferDetailModal';
 import { LinkSkuModal } from './components/modals/LinkSkuModal';
 import { NewInvoiceModal } from './components/modals/NewInvoiceModal';
+import { EditProductModal } from './components/modals/EditProductModal';
 
 export default function App() {
   // Navigation & Filter State
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [globalSearch, setGlobalSearch] = useState<string>('');
 
   // Data State (initialized with fallback data, populated from Backend API)
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [movements, setMovements] = useState<StockMovement[]>(INITIAL_MOVEMENTS);
-  const [transfers, setTransfers] = useState<Transfer[]>(INITIAL_TRANSFERS);
-  const [invoices, setInvoices] = useState<Invoice[]>(INITIAL_INVOICES);
-  const [stagedInvoice, setStagedInvoice] = useState<StagedInvoice | null>(STAGED_INVOICE_DEFAULT);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [stagedInvoice, setStagedInvoice] = useState<StagedInvoice | null>(null);
 
   // Notifications
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -49,6 +42,7 @@ export default function App() {
   // Modals
   const [isStockAdjustOpen, setIsStockAdjustOpen] = useState(false);
   const [fiscalProduct, setFiscalProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAccessKeyOpen, setIsAccessKeyOpen] = useState(false);
   const [danfeInvoice, setDanfeInvoice] = useState<Invoice | null>(null);
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
@@ -70,11 +64,11 @@ export default function App() {
           api.getStagedInvoice().catch(() => null),
         ]);
 
-        if (prods && prods.length > 0) setProducts(prods);
-        if (movs && movs.length > 0) setMovements(movs);
-        if (trfs && trfs.length > 0) setTransfers(trfs);
-        if (invs && invs.length > 0) setInvoices(invs);
-        if (staged !== undefined && staged !== null) setStagedInvoice(staged);
+        if (prods) setProducts(prods);
+        if (movs) setMovements(movs);
+        if (trfs) setTransfers(trfs);
+        if (invs) setInvoices(invs);
+        setStagedInvoice(staged);
       } catch (e) {
         console.warn('Backend API não conectado, rodando no modo local:', e);
       }
@@ -96,262 +90,80 @@ export default function App() {
   };
 
   // Business Action Handlers
-  const handleSaveStockAdjustment = async (
-    productId: string,
-    newStock: number,
-    reason: string,
-    observation: string
-  ) => {
-    const prod = products.find((p) => p.id === productId);
-    if (!prod) return;
-
-    const diff = newStock - prod.stock;
-
+  const handleSaveStockAdjustment = async (productId: string, newStock: number, reason: string, observation: string) => {
     try {
-      const res = await api.adjustStock(productId, newStock, reason, observation);
-      setProducts((prev) => prev.map((p) => (p.id === productId ? res.product : p)));
-      setMovements((prev) => [res.movement, ...prev]);
-    } catch {
-      // Local fallback
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === productId
-            ? {
-                ...p,
-                stock: newStock,
-                status: newStock > 20 ? 'ok' : newStock > 0 ? 'low' : 'out',
-              }
-            : p
-        )
-      );
-
-      const now = new Date();
-      const timeString = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const newMovement: StockMovement = {
-        id: Date.now().toString(),
-        timestamp: '24/10 ' + timeString,
-        time: timeString,
-        productId: prod.id,
-        productName: prod.name,
-        sku: prod.sku,
-        origin: 'Prat. C-01',
-        destination: 'Inventário',
-        operationType: reason === 'avaria' ? 'Ajuste Avaria' : 'Ajuste Inventário',
-        quantity: diff,
-        unit: prod.unit,
-        responsibleName: 'Mariana Silva',
-        responsibleAvatar: 'https://lh3.googleusercontent.com/a/ACg8ocL_user4_avatar',
-        branch: 'matriz',
-      };
-      setMovements((prev) => [newMovement, ...prev]);
-    }
-
-    showToast(
-      'Ajuste Registrado com Sucesso',
-      `Saldo de ${prod.name} atualizado para ${newStock} ${prod.unit} (${diff >= 0 ? '+' : ''}${diff})`
-    );
+      const result = await api.adjustStock(productId, newStock, reason, observation);
+      setProducts(prev => prev.map(p => p.id === productId ? result.product : p));
+      setMovements(prev => [result.movement, ...prev]);
+      showToast('Estoque atualizado', 'O ajuste e a movimentação foram salvos no banco.');
+    } catch (error) { showToast('Falha ao salvar ajuste', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
-
   const handleSaveFiscal = async (productId: string, ncm: string, icms: string, cfop: string) => {
     try {
       const updated = await api.updateFiscal(productId, ncm, icms, cfop);
       setProducts((prev) => prev.map((p) => (p.id === productId ? updated : p)));
-    } catch {
-      setProducts((prev) =>
-        prev.map((p) => (p.id === productId ? { ...p, ncm, icms, cfop } : p))
-      );
-    }
-    showToast('Ficha Fiscal Atualizada', `NCM ${ncm} e alíquota ${icms} salvos.`);
-    setFiscalProduct(null);
+      showToast('Ficha fiscal atualizada', `NCM ${ncm} e alíquota ${icms} salvos.`);
+      setFiscalProduct(null);
+    } catch (error) { showToast('Falha ao salvar dados fiscais', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
 
-  const handleAddProduct = async (newProdData: Omit<Product, 'id'>) => {
+  const handleUpdateProduct = async (id:string,data:Partial<Product>) => {
+    try { const updated=await api.updateProduct(id,data); setProducts(prev=>prev.map(p=>p.id===id?updated:p)); setEditingProduct(null); showToast('Produto atualizado', 'As alterações foram salvas no banco.'); }
+    catch(error) { showToast('Falha ao atualizar produto', error instanceof Error ? error.message : 'Tente novamente.'); }
+  };
+
+  const handleAddProduct = async (data: Omit<Product, 'id'>) => {
     try {
-      const created = await api.createProduct(newProdData);
-      setProducts((prev) => [created, ...prev]);
-      showToast('Produto Cadastrado', `${created.name} (${created.sku}) adicionado ao estoque.`);
-    } catch {
-      const newId = Date.now().toString();
-      const newProd: Product = { id: newId, ...newProdData };
-      setProducts((prev) => [newProd, ...prev]);
-      showToast('Produto Cadastrado', `${newProd.name} (${newProd.sku}) adicionado ao estoque.`);
-    }
+      const created = await api.createProduct(data);
+      setProducts(prev => [created, ...prev]);
+      showToast('Produto cadastrado', `${created.name} foi salvo no banco de dados.`);
+    } catch (error) { showToast('Falha ao cadastrar', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
-
-  const handleAddTransfer = async (transferData: Omit<Transfer, 'id'>) => {
-    try {
-      const created = await api.createTransfer(transferData);
-      setTransfers((prev) => [created, ...prev]);
-      showToast('Transferência Iniciada', `${created.code}: ${created.description}`);
-    } catch {
-      const newTrf: Transfer = { id: Date.now().toString(), ...transferData };
-      setTransfers((prev) => [newTrf, ...prev]);
-      showToast('Transferência Iniciada', `${newTrf.code}: ${newTrf.description}`);
-    }
+  const handleAddTransfer = async (data: Omit<Transfer, 'id'>) => {
+    try { const created = await api.createTransfer(data); setTransfers(prev => [created, ...prev]); showToast('Transferência registrada', created.code); }
+    catch (error) { showToast('Falha ao registrar transferência', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
-
   const handleCompleteTransfer = async (transferId: string) => {
-    try {
-      const updated = await api.completeTransfer(transferId);
-      setTransfers((prev) => prev.map((t) => (t.id === transferId ? updated : t)));
-    } catch {
-      setTransfers((prev) =>
-        prev.map((t) => (t.id === transferId ? { ...t, status: 'Concluído', progressPercent: 100 } : t))
-      );
-    }
-    showToast('Transferência Concluída', 'Mercadoria recebida e adicionada ao saldo local.');
+    try { const updated = await api.completeTransfer(transferId); setTransfers(prev => prev.map(t => t.id === transferId ? updated : t)); showToast('Transferência atualizada', 'Status salvo no banco.'); }
+    catch (error) { showToast('Falha ao concluir transferência', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
-
   const handleConfirmXmlEntry = async (staged: StagedInvoice) => {
     try {
       const result = await api.confirmXmlEntry(staged);
-      setMovements((prev) => [result.movement, ...prev]);
-      setInvoices((prev) => [result.invoice, ...prev]);
-      setStagedInvoice(null);
-    } catch {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const inboundMov: StockMovement = {
-        id: Date.now().toString(),
-        timestamp: 'Hoje ' + timeStr,
-        time: timeStr,
-        productId: 'inbound_xml',
-        productName: staged.items[0]?.name || 'Lote de Mercadorias XML',
-        sku: 'LOTE-XML',
-        origin: 'Doca Recebimento',
-        destination: 'Almoxarifado Geral',
-        operationType: 'Entrada Fornecedor',
-        quantity: staged.items.reduce((a, b) => a + b.quantity, 0),
-        unit: 'un',
-        responsibleName: 'Carlos Santos',
-        responsibleAvatar: 'https://lh3.googleusercontent.com/a/ACg8ocL_user1_avatar',
-        branch: 'matriz',
-      };
-      setMovements((prev) => [inboundMov, ...prev]);
-
-      const newInv: Invoice = {
-        id: Date.now().toString(),
-        number: staged.invoiceNumber,
-        series: 'Série 1',
-        type: 'Entrada',
-        partyName: staged.supplierName,
-        taxId: staged.supplierCnpj,
-        date: 'Hoje, ' + timeStr,
-        amount: staged.totalAmount,
-        status: 'Autorizada',
-        accessKey: staged.accessKey,
-        docType: 'NF-e',
-        xmlAvailable: true,
-      };
-      setInvoices((prev) => [newInv, ...prev]);
-      setStagedInvoice(null);
-    }
-
-    showToast(
-      'Entrada de Mercadorias Confirmada',
-      `Itens da nota ${staged.invoiceNumber} incorporados ao inventário físico.`
-    );
+      const [prods, movs, invs] = await Promise.all([api.getProducts(), api.getMovements(), api.getInvoices()]);
+      setProducts(prods); setMovements(movs); setInvoices(invs); setStagedInvoice(null);
+      showToast('Entrada confirmada', `${staged.invoiceNumber} salva; estoque e histórico foram atualizados.`);
+    } catch (error) { showToast('Não foi possível confirmar a nota', error instanceof Error ? error.message : 'Confira os vínculos dos itens.'); }
+  };
+  const handleStageXml = async (staged: StagedInvoice) => {
+    const persisted = await api.stageInvoice(staged);
+    setStagedInvoice(persisted);
   };
 
   const handleLinkSku = async (itemId: string, sku: string) => {
-    if (!stagedInvoice) return;
-    try {
-      const updated = await api.linkStagedSku(itemId, sku);
-      setStagedInvoice(updated);
-    } catch {
-      setStagedInvoice({
-        ...stagedInvoice,
-        items: stagedInvoice.items.map((it) =>
-          it.id === itemId ? { ...it, status: 'linked', skuMatch: sku } : it
-        ),
-      });
-    }
-    showToast('SKU Vinculado', `Vínculo com ${sku} salvo para este item.`);
+    try { const updated = await api.linkStagedSku(itemId, sku); setStagedInvoice(updated); showToast('SKU vinculado', `${sku} salvo na nota pendente.`); }
+    catch (error) { showToast('Falha ao vincular SKU', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
-
   const handleConsultKey = async (key: string) => {
-    try {
-      await api.consultKey(key);
-    } catch {
-      // Fallback
-    }
-    showToast(
-      'NF-e Localizada na SEFAZ',
-      `Chave ${key.slice(0, 16)}... encontrada. Documento válido e autorizado.`
-    );
+    try { const result = await api.consultKey(key); showToast('Consulta SEFAZ não configurada', result.message || 'Chave validada, mas o sistema ainda não consulta a SEFAZ.'); }
+    catch (error) { showToast('Não foi possível validar a chave', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
-
-  const handleEmitInvoice = async (newInv: Omit<Invoice, 'id'>) => {
-    try {
-      const created = await api.emitInvoice(newInv);
-      setInvoices((prev) => [created, ...prev]);
-      showToast(
-        `${created.docType} Emitida com Sucesso`,
-        `Protocolo autorizatório gerado. Documento disponível para download.`
-      );
-    } catch {
-      const inv: Invoice = { id: Date.now().toString(), ...newInv };
-      setInvoices((prev) => [inv, ...prev]);
-      showToast(
-        `${inv.docType} Emitida com Sucesso`,
-        `Protocolo autorizatório gerado. Documento disponível para download.`
-      );
-    }
+  const handleEmitInvoice = async (data: Omit<Invoice, 'id'>) => {
+    try { const created = await api.emitInvoice(data); setInvoices(prev => [created, ...prev]); showToast('Rascunho salvo', 'O documento foi registrado localmente; ele não foi transmitido à SEFAZ.'); }
+    catch (error) { showToast('Falha ao salvar rascunho', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
-
   const handleDownloadXml = async (inv: Invoice) => {
     try {
-      const response = await fetch(`/api/invoices/${inv.id}/xml`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${inv.number.replace(/\s+/g, '_')}.xml`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast('Download Concluído', `Arquivo ${inv.number}.xml baixado com sucesso.`);
-        return;
-      }
-    } catch {
-      // Fallback
-    }
-
-    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
-  <NFe>
-    <infNFe Id="NFe${inv.accessKey.replace(/\s/g, '')}" versao="4.00">
-      <ide>
-        <nNF>${inv.number.replace(/\D/g, '')}</nNF>
-        <serie>1</serie>
-        <dEmi>${inv.date}</dEmi>
-        <tpNF>${inv.type === 'Entrada' ? '0' : '1'}</tpNF>
-      </ide>
-      <total><vNF>${inv.amount.toFixed(2)}</vNF></total>
-    </infNFe>
-  </NFe>
-</nfeProc>`;
-
-    const blob = new Blob([xmlContent], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${inv.number.replace(/\s+/g, '_')}.xml`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    showToast('Download Concluído', `Arquivo ${inv.number}.xml baixado com sucesso.`);
+      const response = await fetch(api.getXmlUrl(inv.id));
+      if (!response.ok) throw new Error('O XML original não está armazenado para esta nota.');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a'); link.href = url; link.download = `${inv.number.replace(/\s+/g, '_')}.xml`; link.click(); URL.revokeObjectURL(url);
+    } catch (error) { showToast('XML indisponível', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
 
-  const handleRefreshStatus = (inv: Invoice) => {
-    setInvoices((prev) =>
-      prev.map((item) => (item.id === inv.id ? { ...item, status: 'Autorizada' } : item))
-    );
-    showToast('Status Sincronizado', `${inv.number} foi autorizada com sucesso na SEFAZ.`);
+  const handleRefreshStatus = async (_invoice: Invoice) => {
+    try { setInvoices(await api.getInvoices()); showToast('Lista atualizada', 'A situação disponível é a registrada neste sistema.'); }
+    catch (error) { showToast('Falha ao atualizar notas', error instanceof Error ? error.message : 'Tente novamente.'); }
   };
 
   return (
@@ -360,8 +172,6 @@ export default function App() {
       <Header
         currentView={currentView}
         onNavigate={setCurrentView}
-        currentBranch={selectedBranch}
-        onBranchChange={setSelectedBranch}
         searchQuery={globalSearch}
         onSearchChange={setGlobalSearch}
         onTriggerToast={showToast}
@@ -402,8 +212,7 @@ export default function App() {
               onOpenNewProductModal={() => setIsNewProductOpen(true)}
               onOpenFiscalModal={(p) => setFiscalProduct(p)}
               onOpenEditModal={(p) => {
-                setFiscalProduct(p);
-                showToast('Editar Produto', `Editando informações de ${p.name}`);
+                setEditingProduct(p);
               }}
               onOpenImportModal={() => {
                 setCurrentView('invoices');
@@ -430,6 +239,7 @@ export default function App() {
               invoices={invoices}
               stagedInvoice={stagedInvoice}
               onConfirmXmlEntry={handleConfirmXmlEntry}
+              onStageXml={handleStageXml}
               onOpenNewInvoiceModal={() => {
                 setNewInvoiceDocType('NF-e');
                 setIsNewInvoiceOpen(true);
@@ -442,10 +252,10 @@ export default function App() {
               onOpenDanfeModal={(inv) => setDanfeInvoice(inv)}
               onDownloadXml={handleDownloadXml}
               onRefreshInvoiceStatus={handleRefreshStatus}
-              onViewCancellationReason={() =>
+              onViewCancellationReason={(invoice) =>
                 showToast(
                   'Cancelamento de NF-e',
-                  `Nota cancelada pelo emitente. Motivo: Erro nos dados cadastrais do cliente.`
+                  invoice.cancellationReason || 'Nenhum motivo de cancelamento foi registrado.'
                 )
               }
               onLinkSkuModal={(item) => setLinkSkuItem(item)}
@@ -469,6 +279,8 @@ export default function App() {
         onClose={() => setFiscalProduct(null)}
         onSaveFiscal={handleSaveFiscal}
       />
+
+      <EditProductModal product={editingProduct} onClose={()=>setEditingProduct(null)} onSave={handleUpdateProduct} />
 
       <AccessKeyModal
         isOpen={isAccessKeyOpen}

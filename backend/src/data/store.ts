@@ -1,587 +1,85 @@
-import { Product, StockMovement, Transfer, Invoice, StagedInvoice } from '../types';
+import { Sequelize, DataTypes, Op } from 'sequelize';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { Product, StockMovement, Transfer, Invoice, StagedInvoice } from '../types';
 
-export const ASSETS = {
-  userMariana: "https://lh3.googleusercontent.com/aida-public/AB6AXuBArZXEm3enZX04s5rhD874QRycG0eDla3bLvD-Sp5oBEdybUUGztJ8CpyVC7msu56-X1doyJb0q6-BE1uQ-ADlIEJsuViYymMmBCHzi2e5uNc4Ve8jxBI948aHdju_ZduYA3IB1NXyhXzaA-E2wes4k-xZ_lNW-z7rzDe4UHlGsbyejf5ZuabDL1U_OsODq7e6vzOeOVZiPAyOPltK6Wa8__IRnmjIn7-l3WeBjLcXEUZMusrUXa73",
-  userCarlos: "https://lh3.googleusercontent.com/aida-public/AB6AXuB_kvfGsti3gRP6QzMCQne3hhJX86Pwg8ad3o0DTfGDZUsJxtnaIRnpxCUsxQXxre7DpHnJMCgoGxkwv4q2dwdkKAoTKOCKoEFlDWpviAKIlPHMuEVYG0LBXFDmFHm5xiCUJCPlb5uroHIP5enoQBUJnr0QiNPzN-btrKGeEcgMMnw-TL4iREcrb052Y6kGwRvQ4sFiqymy5ke0qDi2q5IlKhISsF0PLk1zswRt5VfCdgWn0KFMnlG9",
-  userJuliana: "https://lh3.googleusercontent.com/aida-public/AB6AXuDOuYhvzKAJBFueusO4NwRB48i163U_g-02OaIzgc3aCFqMKRNFTIsKtsMEuZda4hEvGPjNOWnTCIFWCCG4e0jNunsQcR5EQQ4asHBOV74Gs-K8KySnUtmfGlHi2fnSRWJxATbUyGMDngB2wyGEI1NkcVluncjgTz8gdu59CuHnB3cutr4PuS1HRzPl33iyPt5D3GqoeQkY4hbhi0Poy4gEYYBLHkAM2fID9DMF5YlxQLnYMvSkqU4M",
-  userRafael: "https://lh3.googleusercontent.com/aida-public/AB6AXuCU6fc5mSl2gICmOwRfqwFhh5GDtVCI2FRjxRfky4lt2bqIDrAwcwNuYq5fnnSGW03y4l2NiNPXW009Z2bM5HNo5dS6sZ36wkvYVeouenSSWW5-X0GhJ21SfT9-zc4oL1R-g7cLbHcqo3jRmsaSHqRNSJQlvvk9363_naFg-gSDz9S9pSy85GBV1DT_0rRk6-wHhnegUUpzAx-MQVLWIS_NNF22Gk--VRa-_COgT1OeYOD6ayR85SBq",
+const here = path.dirname(fileURLToPath(import.meta.url));
+export const databasePath = process.env.DATABASE_PATH || path.resolve(here, '../../data/box.sqlite');
+export const sequelize = new Sequelize({ dialect: 'sqlite', storage: databasePath, logging: false });
+
+const ProductModel = sequelize.define('Product', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+  name: { type: DataTypes.STRING, allowNull: false }, sku: { type: DataTypes.STRING, allowNull: false, unique: true },
+  category: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Geral' }, stock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  unit: { type: DataTypes.STRING, allowNull: false, defaultValue: 'un' }, minStock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  maxStock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 }, costPrice: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  salePrice: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 }, image: { type: DataTypes.TEXT, allowNull: true }, supplier: { type: DataTypes.STRING, allowNull: true },
+  invoiceNumber: { type: DataTypes.STRING, allowNull: true }, ncm: { type: DataTypes.STRING, allowNull: true }, icms: { type: DataTypes.STRING, allowNull: true }, cfop: { type: DataTypes.STRING, allowNull: true },
+});
+const MovementModel = sequelize.define('StockMovement', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true }, productId: { type: DataTypes.UUID, allowNull: true }, timestamp: DataTypes.STRING, time: DataTypes.STRING,
+  productName: DataTypes.STRING, sku: DataTypes.STRING, origin: DataTypes.STRING, destination: DataTypes.STRING, operationType: DataTypes.STRING,
+  quantity: DataTypes.FLOAT, unit: DataTypes.STRING, responsibleName: DataTypes.STRING, responsibleAvatar: DataTypes.STRING, branch: DataTypes.STRING,
+});
+const TransferModel = sequelize.define('Transfer', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true }, code: DataTypes.STRING, description: DataTypes.STRING, productName: DataTypes.STRING,
+  quantity: DataTypes.FLOAT, originBranch: DataTypes.STRING, destinationBranch: DataTypes.STRING, status: DataTypes.STRING, progressPercent: DataTypes.INTEGER,
+  eta: DataTypes.STRING, trackingCode: DataTypes.STRING, driver: DataTypes.STRING, plate: DataTypes.STRING,
+});
+const InvoiceModel = sequelize.define('Invoice', {
+  id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true }, number: DataTypes.STRING, series: DataTypes.STRING, type: DataTypes.STRING,
+  docType: DataTypes.STRING, partyName: DataTypes.STRING, taxId: DataTypes.STRING, date: DataTypes.STRING, amount: DataTypes.FLOAT,
+  status: DataTypes.STRING, accessKey: DataTypes.STRING, xmlAvailable: DataTypes.BOOLEAN, cancellationReason: DataTypes.STRING, xml: DataTypes.TEXT,
+});
+const StagedModel = sequelize.define('StagedInvoice', { id: { type: DataTypes.INTEGER, primaryKey: true }, payload: { type: DataTypes.TEXT, allowNull: false } });
+
+const plain = <T>(model: any): T => model.get({ plain: true }) as T;
+export const db = {
+  async init() { await sequelize.authenticate(); await sequelize.sync(); },
+  async getProducts(filters: { search?: string; category?: string; status?: string } = {}): Promise<Product[]> {
+    const where: any = {};
+    if (filters.search) where[Op.or] = ['name', 'sku', 'category', 'supplier'].map(field => ({ [field]: { [Op.like]: `%${filters.search}%` } }));
+    if (filters.category && filters.category !== 'all') where.category = filters.category;
+    const rows = await ProductModel.findAll({ where, order: [['createdAt', 'DESC']] });
+    return rows.map(row => { const p: any = plain<Product>(row); p.status = p.stock <= 0 ? 'out' : p.maxStock > 0 && p.stock > p.maxStock ? 'high' : p.stock <= p.minStock ? 'low' : 'ok'; p.icon='inventory_2'; p.iconBg='bg-blue-50'; p.iconColor='text-primary'; return p; }).filter(p => !filters.status || filters.status === 'all' || p.status === filters.status);
+  },
+  async getProductById(id: string) { const row = await ProductModel.findByPk(id); return row ? plain<Product>(row) : undefined; },
+  async addProduct(data: any) { const row=await ProductModel.create(data); const product:any=plain<Product>(row); product.status=product.stock<=0?'out':product.maxStock>0&&product.stock>product.maxStock?'high':product.stock<=product.minStock?'low':'ok'; product.icon='inventory_2'; product.iconBg='bg-blue-50'; product.iconColor='text-primary'; return product; },
+  async updateProduct(id: string, data: any) { const row = await ProductModel.findByPk(id); if (!row) return null; await row.update(data); return (await this.getProducts()).find(p => p.id === id) || null; },
+  async adjustProductStock(productId: string, newStock: number, reason: string, observation: string) {
+    return sequelize.transaction(async transaction => {
+      const row = await ProductModel.findByPk(productId, { transaction }); if (!row) return null;
+      const p: any = plain<Product>(row); const diff = newStock - p.stock; await row.update({ stock: newStock }, { transaction });
+      const now = new Date(); const time = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const movement = await MovementModel.create({ productId, timestamp: now.toLocaleString('pt-BR'), time, productName: p.name, sku: p.sku, origin: observation || 'Ajuste de estoque', destination: 'Estoque', operationType: reason === 'avaria' ? 'Ajuste Avaria' : 'Ajuste Inventário', quantity: diff, unit: p.unit, responsibleName: 'Operador', responsibleAvatar: '', branch: 'matriz' }, { transaction });
+      p.stock=newStock; p.status=newStock<=0?'out':p.maxStock>0&&newStock>p.maxStock?'high':newStock<=p.minStock?'low':'ok';
+      return { product: p as Product, movement: plain<StockMovement>(movement) };
+    });
+  },
+  async getMovements(branch?: string): Promise<StockMovement[]> { const rows = await MovementModel.findAll({ where: branch && branch !== 'all' ? { branch } : {}, order: [['createdAt','DESC']] }); return rows.map(r => plain<StockMovement>(r)); },
+  async addMovement(data: any) { return plain<StockMovement>(await MovementModel.create(data)); },
+  async getTransfers(): Promise<Transfer[]> { return (await TransferModel.findAll({ order:[['createdAt','DESC']] })).map(r => plain<Transfer>(r)); },
+  async addTransfer(data: any) { return plain<Transfer>(await TransferModel.create(data)); },
+  async completeTransfer(id: string) { const row=await TransferModel.findByPk(id); if(!row)return null; await row.update({status:'Concluído',progressPercent:100}); return plain<Transfer>(row); },
+  async getInvoices(): Promise<Invoice[]> { return (await InvoiceModel.findAll({ order:[['createdAt','DESC']] })).map(r => { const invoice:any=plain<Invoice>(r); delete invoice.xml; return invoice; }); },
+  async getInvoice(id: string): Promise<Invoice|undefined> { const row=await InvoiceModel.findByPk(id); if(!row)return undefined; const invoice:any=plain<Invoice>(row); invoice.xmlContent=(row as any).getDataValue('xml')||undefined; return invoice; },
+  async addInvoice(data: any) { return plain<Invoice>(await InvoiceModel.create(data)); },
+  async getStagedInvoice(): Promise<StagedInvoice|null> { const row=await StagedModel.findByPk(1); return row ? JSON.parse((row as any).payload) : null; },
+  async setStagedInvoice(value: StagedInvoice|null) { if(value) { value.items=await Promise.all(value.items.map(async item=>{const code=item.skuMatch?.trim(); if(!code)return {...item,status:'unlinked'}; const match=await ProductModel.findOne({where:{sku:code}}); return {...item,status:match?'linked':'unlinked'};})); await StagedModel.upsert({id:1,payload:JSON.stringify(value)}); } else await StagedModel.destroy({where:{id:1}}); return value; },
+  async linkStagedItemSku(itemId: string, sku: string) { const staged=await this.getStagedInvoice(); if(!staged)return null; staged.items=staged.items.map(i=>i.id===itemId?{...i,status:'linked',skuMatch:sku}:i); await this.setStagedInvoice(staged); return staged; },
+  async confirmXmlEntry(staged: StagedInvoice) {
+    return sequelize.transaction(async transaction => {
+      const now=new Date(); const when=now.toLocaleString('pt-BR'); const time=now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+      let latestMovement: StockMovement|null = null;
+      for(const item of staged.items) {
+        const product= item.skuMatch ? await ProductModel.findOne({where:{sku:item.skuMatch},transaction}) : null;
+        if(!product) throw new Error(`Vincule o SKU do item "${item.name}" antes de confirmar.`);
+        const p:any=plain<Product>(product); await product.update({stock:p.stock+item.quantity,costPrice:item.unitPrice,supplier:staged.supplierName,invoiceNumber:staged.invoiceNumber},{transaction});
+        const movement=await MovementModel.create({productId:p.id,timestamp:when,time,productName:p.name,sku:p.sku,origin:staged.supplierName,destination:'Estoque',operationType:'Entrada Fornecedor',quantity:item.quantity,unit:item.unit,responsibleName:'Operador',responsibleAvatar:'',branch:'matriz'},{transaction}); latestMovement=plain<StockMovement>(movement);
+      }
+      const invoice=await InvoiceModel.create({number:staged.invoiceNumber,series:'1',type:'Entrada',docType:'NF-e',partyName:staged.supplierName,taxId:staged.supplierCnpj,date:when,amount:staged.totalAmount,status:'Importada',accessKey:staged.accessKey,xmlAvailable:Boolean(staged.xmlContent),xml:staged.xmlContent||null},{transaction});
+      await StagedModel.destroy({where:{id:1},transaction});
+      return {invoice:plain<Invoice>(invoice),movement:latestMovement};
+    });
+  },
 };
-
-export const INITIAL_PRODUCTS: Product[] = [
-  {
-    id: "p1",
-    name: "Microcontrolador Industrial NexChip Pro v2",
-    sku: "NX-EL-8821",
-    category: "Eletrônicos",
-    stock: 142,
-    unit: "un",
-    minStock: 30,
-    costPrice: 184.50,
-    salePrice: 319.90,
-    status: "ok",
-    icon: "memory",
-    iconBg: "bg-[#FFF1DC]",
-    iconColor: "text-primary",
-    ncm: "8542.31.90",
-    icms: "18%",
-    cfop: "5102"
-  },
-  {
-    id: "p2",
-    name: "Módulo Sensor Óptico High-Precision",
-    sku: "NX-EL-9014",
-    category: "Sensores",
-    stock: 8,
-    unit: "un",
-    minStock: 15,
-    costPrice: 82.10,
-    salePrice: 145.00,
-    status: "low",
-    icon: "sensors",
-    iconBg: "bg-amber-50",
-    iconColor: "text-amber-600",
-    ncm: "9031.80.99",
-    icms: "18%",
-    cfop: "5102"
-  },
-  {
-    id: "p3",
-    name: "Conjunto Parafusos Inox M4x16mm",
-    sku: "NX-FX-4011",
-    category: "Fixadores",
-    stock: 340,
-    unit: "cx",
-    minStock: 50,
-    costPrice: 38.90,
-    salePrice: 68.00,
-    status: "ok",
-    icon: "build",
-    iconBg: "bg-slate-100",
-    iconColor: "text-slate-600",
-    ncm: "7318.15.00",
-    icms: "12%",
-    cfop: "5102"
-  },
-  {
-    id: "p4",
-    name: "Bobina Filme Stretch Manual 500mm",
-    sku: "NX-EB-1190",
-    category: "Embalagens",
-    stock: 0,
-    unit: "bob",
-    minStock: 20,
-    costPrice: 29.40,
-    salePrice: 49.90,
-    status: "out",
-    icon: "remove_shopping_cart",
-    iconBg: "bg-red-50",
-    iconColor: "text-red-600",
-    ncm: "3920.10.99",
-    icms: "18%",
-    cfop: "5102"
-  },
-  {
-    id: "p5",
-    name: "Trilho Telescópico Reforçado 450mm",
-    sku: "NX-FE-3301",
-    category: "Ferragens",
-    stock: 88,
-    unit: "par",
-    minStock: 25,
-    costPrice: 22.80,
-    salePrice: 44.50,
-    status: "ok",
-    icon: "door_sliding",
-    iconBg: "bg-slate-100",
-    iconColor: "text-slate-600",
-    ncm: "8302.42.00",
-    icms: "18%",
-    cfop: "5102"
-  },
-  {
-    id: "p6",
-    name: "Fonte Bivolt Automática 60W",
-    sku: "ELE-60W-BIV",
-    category: "Eletrônicos",
-    stock: 120,
-    unit: "un",
-    minStock: 40,
-    costPrice: 45.00,
-    salePrice: 89.90,
-    status: "ok",
-    icon: "bolt",
-    iconBg: "bg-[#FFF1DC]",
-    iconColor: "text-primary",
-    ncm: "8504.40.21",
-    icms: "18%",
-    cfop: "5102"
-  },
-  {
-    id: "p7",
-    name: "Teclado Mecânico Pro RGB",
-    sku: "PER-TEC-MEC",
-    category: "Periféricos",
-    stock: 45,
-    unit: "un",
-    minStock: 10,
-    costPrice: 110.00,
-    salePrice: 239.90,
-    status: "ok",
-    icon: "keyboard",
-    iconBg: "bg-purple-50",
-    iconColor: "text-purple-600",
-    ncm: "8471.60.52",
-    icms: "12%",
-    cfop: "5102"
-  },
-  {
-    id: "p8",
-    name: "Cabo Blindado USB-C 2M",
-    sku: "CAB-USBC-2M",
-    category: "Cabos",
-    stock: 880,
-    unit: "un",
-    minStock: 100,
-    costPrice: 9.80,
-    salePrice: 24.90,
-    status: "ok",
-    icon: "cable",
-    iconBg: "bg-teal-50",
-    iconColor: "text-teal-600",
-    ncm: "8544.42.00",
-    icms: "18%",
-    cfop: "5102"
-  }
-];
-
-export const INITIAL_MOVEMENTS: StockMovement[] = [
-  {
-    id: "m1",
-    timestamp: "24/10 14:32",
-    time: "14:32",
-    productName: "Fonte Bivolt Automática 60W",
-    sku: "ELE-60W-BIV",
-    origin: "Doca Receb.",
-    destination: "Prat. B-04",
-    operationType: "Entrada Fornecedor",
-    quantity: 150,
-    unit: "un",
-    responsibleName: "Carlos Santos",
-    responsibleAvatar: ASSETS.userCarlos,
-    branch: "matriz"
-  },
-  {
-    id: "m2",
-    timestamp: "24/10 14:15",
-    time: "14:15",
-    productName: "Teclado Mecânico Pro RGB",
-    sku: "PER-TEC-MEC",
-    origin: "Prat. A-12",
-    destination: "PDV Caixa 02",
-    operationType: "Saída PDV",
-    quantity: -2,
-    unit: "un",
-    responsibleName: "Juliana Lima",
-    responsibleAvatar: ASSETS.userJuliana,
-    branch: "matriz"
-  },
-  {
-    id: "m3",
-    timestamp: "24/10 13:48",
-    time: "13:48",
-    productName: "Cabo Blindado USB-C 2M",
-    sku: "CAB-USBC-2M",
-    origin: "Matriz SP",
-    destination: "CD Curitiba",
-    operationType: "Transferência",
-    quantity: -200,
-    unit: "un",
-    responsibleName: "Rafael Nogueira",
-    responsibleAvatar: ASSETS.userRafael,
-    branch: "matriz"
-  },
-  {
-    id: "m4",
-    timestamp: "24/10 11:10",
-    time: "11:10",
-    productName: "Mouse Sem Fio Ergonômico",
-    sku: "MOU-ERG-WL",
-    origin: "Prat. C-01",
-    destination: "Inventário",
-    operationType: "Ajuste Avaria",
-    quantity: -1,
-    unit: "un",
-    responsibleName: "Mariana Silva",
-    responsibleAvatar: ASSETS.userMariana,
-    branch: "curitiba"
-  },
-  {
-    id: "m5",
-    timestamp: "24/10 10:47",
-    time: "10:47",
-    productName: "Rolamento 6205 Blindado",
-    sku: "NX-5519",
-    origin: "CD Curitiba",
-    destination: "Matriz SP",
-    operationType: "Transferência",
-    quantity: 150,
-    unit: "un",
-    responsibleName: "Carlos Santos",
-    responsibleAvatar: ASSETS.userCarlos,
-    branch: "curitiba"
-  },
-  {
-    id: "m6",
-    timestamp: "24/10 08:50",
-    time: "08:50",
-    productName: "Cabo Flexível 2.5mm",
-    sku: "NX-3310",
-    origin: "Doca Receb.",
-    destination: "Almox. 01",
-    operationType: "Entrada Fornecedor",
-    quantity: 50,
-    unit: "rolos",
-    responsibleName: "Rafael Nogueira",
-    responsibleAvatar: ASSETS.userRafael,
-    branch: "matriz"
-  }
-];
-
-export const INITIAL_TRANSFERS: Transfer[] = [
-  {
-    id: "t1",
-    code: "TRF-2024-089",
-    description: "120x Fonte Bivolt 60W",
-    productName: "Fonte Bivolt 60W",
-    quantity: 120,
-    originBranch: "Matriz SP",
-    destinationBranch: "CD Curitiba",
-    status: "Em Rota",
-    progressPercent: 70,
-    eta: "Hoje às 17:00",
-    trackingCode: "BR-EXP-9921448",
-    driver: "Marcos Vinicius",
-    plate: "BRA-4E21"
-  },
-  {
-    id: "t2",
-    code: "TRF-2024-092",
-    description: "45x Teclado Mecânico Pro",
-    productName: "Teclado Mecânico Pro",
-    quantity: 45,
-    originBranch: "CD Curitiba",
-    destinationBranch: "Matriz SP",
-    status: "Em Separação",
-    progressPercent: 35,
-    eta: "Amanhã 09:00",
-    trackingCode: "BR-LOG-4410982",
-    driver: "Anderson Pires",
-    plate: "CUR-9011"
-  }
-];
-
-export const INITIAL_INVOICES: Invoice[] = [
-  {
-    id: "inv-1",
-    number: "NF-e 000.010.450",
-    series: "Série 1",
-    type: "Saída",
-    docType: "NF-e",
-    partyName: "Alpha Computadores e Redes SA",
-    taxId: "04.912.839/0001-44",
-    date: "Hoje, 11:28",
-    amount: 18420.00,
-    status: "Autorizada",
-    accessKey: "3524 1004 9128 3900 0144 5500 1000 0104 5012 3456 7890",
-    xmlAvailable: true
-  },
-  {
-    id: "inv-2",
-    number: "NFC-e 000.082.119",
-    series: "Série 2",
-    type: "Saída",
-    docType: "NFC-e",
-    partyName: "Consumidor Final",
-    taxId: "CPF ***.482.908-**",
-    date: "Hoje, 11:15",
-    amount: 389.90,
-    status: "Autorizada",
-    accessKey: "3524 1004 9128 3900 0144 6500 2000 0821 1912 3456 7891",
-    xmlAvailable: true
-  },
-  {
-    id: "inv-3",
-    number: "NF-e 000.048.291",
-    series: "Série 1",
-    type: "Entrada",
-    docType: "NF-e",
-    partyName: "TechBrasil Distribuidora LTDA",
-    taxId: "12.345.678/0001-90",
-    date: "24/Out, 14:32",
-    amount: 45320.00,
-    status: "Autorizada",
-    accessKey: "3524 1012 3456 7800 0190 5500 1000 0482 9112 3456 7892",
-    xmlAvailable: true
-  },
-  {
-    id: "inv-4",
-    number: "NF-e 000.010.451",
-    series: "Série 1",
-    type: "Saída",
-    docType: "NF-e",
-    partyName: "Logística Express Rio SA",
-    taxId: "33.109.842/0001-19",
-    date: "Hoje, 11:34",
-    amount: 8940.50,
-    status: "Processando",
-    accessKey: "3524 1033 1098 4200 0119 5500 1000 0104 5112 3456 7893",
-    xmlAvailable: true
-  },
-  {
-    id: "inv-5",
-    number: "NF-e 000.010.449",
-    series: "Série 1",
-    type: "Saída",
-    docType: "NF-e",
-    partyName: "Prime Tech Comércio Informática",
-    taxId: "19.822.403/0001-92",
-    date: "Ontem, 17:02",
-    amount: 6310.00,
-    status: "Cancelada",
-    accessKey: "3524 1019 8224 0300 0192 5500 1000 0104 4912 3456 7894",
-    xmlAvailable: false,
-    cancellationReason: "Cancelamento solicitado pelo emitente por divergência na alíquota ICMS interestadual."
-  }
-];
-
-export const STAGED_INVOICE_DEFAULT: StagedInvoice = {
-  supplierName: "TechBrasil Distribuidora LTDA",
-  supplierCnpj: "12.345.678/0001-90",
-  invoiceNumber: "NF-e 000.048.291",
-  totalAmount: 45320.00,
-  issueDate: "24/10/2026 14:10",
-  accessKey: "3524 1012 3456 7800 0190 5500 1000 0482 9112 3456 7892",
-  items: [
-    {
-      id: "si-1",
-      name: "SSD NVMe 1TB Gen4 HighSpeed",
-      skuMatch: "NX-HD-0012",
-      quantity: 50,
-      unit: "un",
-      unitPrice: 295.00,
-      status: "linked",
-      cfop: "1102",
-      ncm: "8471.70.40"
-    },
-    {
-      id: "si-2",
-      name: "Gabinete Gamer ATX Mid Tower",
-      skuMatch: undefined,
-      quantity: 25,
-      unit: "un",
-      unitPrice: 180.00,
-      status: "unlinked",
-      cfop: "1102",
-      ncm: "8473.30.19"
-    },
-    {
-      id: "si-3",
-      name: "Cabo HDMI 2.1 8K Ultra High Speed 2m",
-      skuMatch: "NX-CB-8830",
-      quantity: 100,
-      unit: "un",
-      unitPrice: 22.50,
-      status: "linked",
-      cfop: "1102",
-      ncm: "8544.42.00"
-    }
-  ]
-};
-
-// In-Memory Database Store Class
-class DataStore {
-  private products: Product[] = [...INITIAL_PRODUCTS];
-  private movements: StockMovement[] = [...INITIAL_MOVEMENTS];
-  private transfers: Transfer[] = [...INITIAL_TRANSFERS];
-  private invoices: Invoice[] = [...INITIAL_INVOICES];
-  private stagedInvoice: StagedInvoice | null = JSON.parse(JSON.stringify(STAGED_INVOICE_DEFAULT));
-
-  // Products
-  getProducts(): Product[] {
-    return this.products;
-  }
-
-  getProductById(id: string): Product | undefined {
-    return this.products.find(p => p.id === id);
-  }
-
-  addProduct(productData: Omit<Product, 'id'>): Product {
-    const newProduct: Product = {
-      id: `p${Date.now()}`,
-      ...productData
-    };
-    this.products.unshift(newProduct);
-    return newProduct;
-  }
-
-  adjustProductStock(productId: string, newStock: number, reason: string, observation: string): { product: Product; movement: StockMovement } | null {
-    const prodIndex = this.products.findIndex(p => p.id === productId);
-    if (prodIndex === -1) return null;
-
-    const prod = this.products[prodIndex];
-    const diff = newStock - prod.stock;
-
-    const updatedProduct: Product = {
-      ...prod,
-      stock: newStock,
-      status: newStock > 20 ? 'ok' : newStock > 0 ? 'low' : 'out',
-    };
-    this.products[prodIndex] = updatedProduct;
-
-    const now = new Date();
-    const timeString = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const newMovement: StockMovement = {
-      id: `m${Date.now()}`,
-      timestamp: '24/10 ' + timeString,
-      time: timeString,
-      productId: prod.id,
-      productName: prod.name,
-      sku: prod.sku,
-      origin: 'Prat. C-01',
-      destination: 'Inventário',
-      operationType: reason === 'avaria' ? 'Ajuste Avaria' : 'Ajuste Inventário',
-      quantity: diff,
-      unit: prod.unit,
-      responsibleName: 'Mariana Silva',
-      responsibleAvatar: 'https://lh3.googleusercontent.com/a/ACg8ocL_user4_avatar',
-      branch: 'matriz',
-    };
-
-    this.movements.unshift(newMovement);
-    return { product: updatedProduct, movement: newMovement };
-  }
-
-  updateProductFiscal(productId: string, ncm: string, icms: string, cfop: string): Product | null {
-    const prodIndex = this.products.findIndex(p => p.id === productId);
-    if (prodIndex === -1) return null;
-
-    this.products[prodIndex] = {
-      ...this.products[prodIndex],
-      ncm,
-      icms,
-      cfop
-    };
-    return this.products[prodIndex];
-  }
-
-  // Movements
-  getMovements(branch?: string): StockMovement[] {
-    if (!branch || branch === 'all') return this.movements;
-    return this.movements.filter(m => m.branch === branch || m.branch === 'all');
-  }
-
-  addMovement(movementData: Omit<StockMovement, 'id'>): StockMovement {
-    const newMovement: StockMovement = {
-      id: `m${Date.now()}`,
-      ...movementData
-    };
-    this.movements.unshift(newMovement);
-    return newMovement;
-  }
-
-  // Transfers
-  getTransfers(): Transfer[] {
-    return this.transfers;
-  }
-
-  addTransfer(transferData: Omit<Transfer, 'id'>): Transfer {
-    const newTransfer: Transfer = {
-      id: `t${Date.now()}`,
-      ...transferData
-    };
-    this.transfers.unshift(newTransfer);
-    return newTransfer;
-  }
-
-  completeTransfer(transferId: string): Transfer | null {
-    const index = this.transfers.findIndex(t => t.id === transferId);
-    if (index === -1) return null;
-
-    this.transfers[index] = {
-      ...this.transfers[index],
-      status: 'Concluído',
-      progressPercent: 100
-    };
-    return this.transfers[index];
-  }
-
-  // Invoices
-  getInvoices(): Invoice[] {
-    return this.invoices;
-  }
-
-  addInvoice(invoiceData: Omit<Invoice, 'id'>): Invoice {
-    const newInvoice: Invoice = {
-      id: `inv-${Date.now()}`,
-      ...invoiceData
-    };
-    this.invoices.unshift(newInvoice);
-    return newInvoice;
-  }
-
-  getStagedInvoice(): StagedInvoice | null {
-    return this.stagedInvoice;
-  }
-
-  linkStagedItemSku(itemId: string, sku: string): StagedInvoice | null {
-    if (!this.stagedInvoice) return null;
-    this.stagedInvoice.items = this.stagedInvoice.items.map(item =>
-      item.id === itemId ? { ...item, status: 'linked', skuMatch: sku } : item
-    );
-    return this.stagedInvoice;
-  }
-
-  confirmXmlEntry(staged: StagedInvoice): { invoice: Invoice; movement: StockMovement } {
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-    const inboundMov: StockMovement = {
-      id: `m${Date.now()}`,
-      timestamp: 'Hoje ' + timeStr,
-      time: timeStr,
-      productId: 'inbound_xml',
-      productName: staged.items[0]?.name || 'Lote de Mercadorias XML',
-      sku: 'LOTE-XML',
-      origin: 'Doca Recebimento',
-      destination: 'Almoxarifado Geral',
-      operationType: 'Entrada Fornecedor',
-      quantity: staged.items.reduce((a, b) => a + b.quantity, 0),
-      unit: 'un',
-      responsibleName: 'Carlos Santos',
-      responsibleAvatar: 'https://lh3.googleusercontent.com/a/ACg8ocL_user1_avatar',
-      branch: 'matriz',
-    };
-    this.movements.unshift(inboundMov);
-
-    const newInvoice: Invoice = {
-      id: `inv-${Date.now()}`,
-      number: staged.invoiceNumber,
-      series: 'Série 1',
-      type: 'Entrada',
-      partyName: staged.supplierName,
-      taxId: staged.supplierCnpj,
-      date: 'Hoje, ' + timeStr,
-      amount: staged.totalAmount,
-      status: 'Autorizada',
-      accessKey: staged.accessKey,
-      docType: 'NF-e',
-      xmlAvailable: true,
-    };
-    this.invoices.unshift(newInvoice);
-    this.stagedInvoice = null;
-
-    return { invoice: newInvoice, movement: inboundMov };
-  }
-}
-
-export const db = new DataStore();

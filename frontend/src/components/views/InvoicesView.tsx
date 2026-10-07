@@ -5,6 +5,7 @@ interface InvoicesViewProps {
   invoices: Invoice[];
   stagedInvoice: StagedInvoice | null;
   onConfirmXmlEntry: (staged: StagedInvoice) => void;
+  onStageXml: (staged: StagedInvoice) => Promise<void>;
   onOpenNewInvoiceModal: () => void;
   onOpenNewNfceModal: () => void;
   onOpenAccessKeyModal: () => void;
@@ -21,6 +22,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   invoices,
   stagedInvoice,
   onConfirmXmlEntry,
+  onStageXml,
   onOpenNewInvoiceModal,
   onOpenNewNfceModal,
   onOpenAccessKeyModal,
@@ -38,6 +40,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const effectiveSearch = (searchQuery || localSearch).toLowerCase();
+  const issuedTotal = invoices.filter(i => i.type === 'Saída').reduce((sum, i) => sum + i.amount, 0);
+  const received = invoices.filter(i => i.type === 'Entrada');
+  const receivedTotal = received.reduce((sum, i) => sum + i.amount, 0);
+  const pending = invoices.filter(i => i.status === 'Processando' || i.status === 'Contingência').length;
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
@@ -54,15 +60,35 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
       return true;
     });
   }, [invoices, effectiveSearch, activeTab]);
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filteredInvoices.length / pageSize));
+  const paginatedInvoices = filteredInvoices.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      onTriggerToast(
-        "XML Processado com Sucesso",
-        `Arquivo ${file.name} carregado. Verifique os dados abaixo para conciliação.`
-      );
-    }
+    if (!file) return;
+    try {
+      if (!file.name.toLowerCase().endsWith('.xml')) throw new Error('Selecione um XML de NF-e. Arquivos ZIP não são aceitos ainda.');
+      const xmlContent = await file.text();
+      const xml = new DOMParser().parseFromString(xmlContent, 'application/xml');
+      if (xml.querySelector('parsererror')) throw new Error('O arquivo XML não está bem formado.');
+      const text = (base: ParentNode, tag: string) => Array.from(base.childNodes).find(n => n.nodeType === 1 && (n as Element).localName === tag)?.textContent?.trim() || '';
+      const first = (tag: string) => xml.getElementsByTagNameNS('*', tag)[0] as Element | undefined;
+      const inf = first('infNFe'); const ide = first('ide'); const emit = first('emit'); const total = first('ICMSTot');
+      if (!inf || !ide || !emit) throw new Error('Não encontrei os dados principais da NF-e neste XML.');
+      const items = Array.from(xml.getElementsByTagNameNS('*', 'det')).map((det, index) => {
+        const prod = Array.from(det.children).find(e => e.localName === 'prod');
+        if (!prod) return null;
+        const field = (key: string) => text(prod, key);
+        return { id: `${index + 1}`, name: field('xProd'), skuMatch: field('cProd') || undefined, quantity: Number(field('qCom')) || 0, unit: field('uCom') || 'un', unitPrice: Number(field('vUnCom')) || 0, status: 'unlinked' as const, cfop: field('CFOP'), ncm: field('NCM') };
+      }).filter(Boolean) as StagedInvoice['items'];
+      if (!items.length) throw new Error('A NF-e não contém produtos.');
+      const staged: StagedInvoice = { supplierName: text(emit, 'xNome'), supplierCnpj: text(emit, 'CNPJ') || text(emit, 'CPF'), invoiceNumber: text(ide, 'nNF'), totalAmount: Number(text(total || xml, 'vNF')) || 0, issueDate: text(ide, 'dhEmi') || text(ide, 'dEmi'), accessKey: (inf.getAttribute('Id') || '').replace(/^NFe/, ''), items, xmlContent };
+      if (!staged.invoiceNumber || !staged.supplierName) throw new Error('XML sem número da nota ou nome do fornecedor.');
+      await onStageXml(staged);
+      onTriggerToast('XML lido', `${items.length} item(ns) da nota ${staged.invoiceNumber} foram carregados para conferência.`);
+    } catch (error) { onTriggerToast('Não foi possível importar', error instanceof Error ? error.message : 'Confira o XML e tente novamente.'); }
+    e.target.value = '';
   };
 
   return (
@@ -102,10 +128,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             <span className="material-symbols-outlined text-[20px] text-blue-600">trending_up</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-slate-900 font-mono">R$ 1.284.920,40</div>
+            <div className="text-2xl font-bold text-slate-900 font-mono">R$ {issuedTotal.toLocaleString('pt-BR', {minimumFractionDigits:2})}</div>
             <div className="flex items-center gap-1.5 mt-1">
-              <span className="text-xs font-medium text-emerald-600">+14.2%</span>
-              <span className="text-xs text-slate-400">• 894 notas autorizadas</span>
+              <span className="text-xs text-slate-400">{invoices.filter(i => i.type === 'Saída').length} nota(s)</span>
             </div>
           </div>
         </div>
@@ -117,10 +142,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             <span className="material-symbols-outlined text-[20px] text-slate-500">inventory_2</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-slate-900 font-mono">428 notas</div>
+            <div className="text-2xl font-bold text-slate-900 font-mono">{received.length} nota(s)</div>
             <div className="flex items-center gap-1.5 mt-1">
-              <span className="text-xs font-mono font-medium text-slate-600">R$ 648.110,88</span>
-              <span className="text-xs text-slate-400">conciliadas</span>
+              <span className="text-xs font-mono font-medium text-slate-600">R$ {receivedTotal.toLocaleString('pt-BR', {minimumFractionDigits:2})}</span>
+              <span className="text-xs text-slate-400">registradas</span>
             </div>
           </div>
         </div>
@@ -132,10 +157,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             <span className="material-symbols-outlined text-[20px] text-amber-500">pending_actions</span>
           </div>
           <div>
-            <div className="text-2xl font-bold text-slate-900 font-mono">2 notas</div>
+            <div className="text-2xl font-bold text-slate-900 font-mono">{pending} nota(s)</div>
             <div className="flex items-center gap-1.5 mt-1">
-              <span className="text-xs text-amber-600 font-medium">1 rascunho</span>
-              <span className="text-xs text-slate-400">• 1 em contingência</span>
+              <span className="text-xs text-slate-400">pendentes de processamento</span>
             </div>
           </div>
         </div>
@@ -168,7 +192,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xml,.zip"
+              accept=".xml"
               className="hidden"
               onChange={handleFileUpload}
             />
@@ -178,7 +202,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               </div>
               <div>
                 <p className="text-xs font-medium text-slate-800">Arraste o XML da nota ou clique para selecionar</p>
-                <p className="text-[11px] text-slate-400">Suporta arquivos .xml ou pacotes .zip da SEFAZ</p>
+                <p className="text-[11px] text-slate-400">Importe o XML da NF-e do fornecedor</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -211,10 +235,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                   </div>
                   <button
                     onClick={() => onConfirmXmlEntry(stagedInvoice)}
+                    disabled={stagedInvoice.items.some(item => item.status !== 'linked')}
                     className="h-7 px-2.5 bg-[#004ac6] text-white rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1 transition-colors shadow-2xs cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[14px]">check</span>
-                    <span>Confirmar Entrada</span>
+                    <span>{stagedInvoice.items.some(item => item.status !== 'linked') ? 'Vincule os itens' : 'Confirmar Entrada'}</span>
                   </button>
                 </div>
               </div>
@@ -290,7 +315,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 activeTab === 'all' ? 'font-semibold bg-slate-100 text-slate-800' : 'font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}
             >
-              Todas <span className="text-slate-400 font-normal ml-1">1.420</span>
+              Todas <span className="text-slate-400 font-normal ml-1">{invoices.length}</span>
             </button>
             <button
               onClick={() => setActiveTab('in')}
@@ -298,7 +323,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 activeTab === 'in' ? 'font-semibold bg-slate-100 text-slate-800' : 'font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}
             >
-              Entradas <span className="text-slate-400 font-normal ml-1">428</span>
+              Entradas <span className="text-slate-400 font-normal ml-1">{received.length}</span>
             </button>
             <button
               onClick={() => setActiveTab('out')}
@@ -306,7 +331,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 activeTab === 'out' ? 'font-semibold bg-slate-100 text-slate-800' : 'font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}
             >
-              Saídas <span className="text-slate-400 font-normal ml-1">992</span>
+              Saídas <span className="text-slate-400 font-normal ml-1">{invoices.filter(i => i.type === 'Saída').length}</span>
             </button>
             <button
               onClick={() => setActiveTab('pending')}
@@ -314,7 +339,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                 activeTab === 'pending' ? 'font-semibold bg-slate-100 text-slate-800' : 'font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}
             >
-              Pendentes <span className="text-amber-600 font-semibold ml-1">2</span>
+              Pendentes <span className="text-amber-600 font-semibold ml-1">{pending}</span>
             </button>
           </div>
 
@@ -349,7 +374,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredInvoices.map((inv) => {
+              {paginatedInvoices.map((inv) => {
                 const isCancelled = inv.status === 'Cancelada';
                 return (
                   <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
@@ -388,6 +413,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                           Autorizada
                         </span>
                       )}
+                      {inv.status === 'Importada' && <span className="inline-flex text-[11px] font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">Importada</span>}
                       {inv.status === 'Processando' && (
                         <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
                           <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -424,12 +450,14 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
                             </button>
                           </>
                         )}
+                        {inv.status === 'Importada' && <button onClick={()=>onOpenDanfeModal(inv)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500" title="Ver dados registrados"><span className="material-symbols-outlined text-[17px]">description</span></button>}
+                        {inv.status === 'Importada' && inv.xmlAvailable && <button onClick={()=>onDownloadXml(inv)} className="p-1.5 rounded hover:bg-slate-100 text-slate-500" title="Baixar XML original"><span className="material-symbols-outlined text-[17px]">download</span></button>}
 
                         {inv.status === 'Processando' && (
                           <button
                             onClick={() => onRefreshInvoiceStatus(inv)}
                             className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
-                            title="Atualizar Status na SEFAZ"
+                            title="Atualizar lista de notas"
                           >
                             <span className="material-symbols-outlined text-[17px]">sync</span>
                           </button>
@@ -453,48 +481,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({
           </table>
         </div>
 
-        {/* Clean Pagination */}
         <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <span>Exibindo 1 a {filteredInvoices.length} de 1.420 documentos</span>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="px-2.5 py-1 rounded border border-slate-200 bg-white text-slate-400 cursor-not-allowed disabled:opacity-50"
-            >
-              Anterior
-            </button>
-            <button
-              onClick={() => setCurrentPage(1)}
-              className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                currentPage === 1 ? 'bg-[#004ac6] text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              1
-            </button>
-            <button
-              onClick={() => setCurrentPage(2)}
-              className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                currentPage === 2 ? 'bg-[#004ac6] text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              2
-            </button>
-            <button
-              onClick={() => setCurrentPage(3)}
-              className={`px-2.5 py-1 rounded font-medium transition-colors ${
-                currentPage === 3 ? 'bg-[#004ac6] text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              3
-            </button>
-            <button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              className="px-2.5 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-            >
-              Próxima
-            </button>
-          </div>
+          <span>{filteredInvoices.length ? `Exibindo ${(currentPage - 1) * pageSize + 1} a ${Math.min(currentPage * pageSize, filteredInvoices.length)} de ${filteredInvoices.length} documentos` : `0 documentos`}</span>
+          <div className="flex gap-2"><button onClick={()=>setCurrentPage(p=>Math.max(1,p-1))} disabled={currentPage===1} className="px-3 py-1.5 border rounded disabled:opacity-40">Anterior</button><span className="px-3 py-1.5">Página {currentPage} de {pageCount}</span><button onClick={()=>setCurrentPage(p=>Math.min(pageCount,p+1))} disabled={currentPage>=pageCount} className="px-3 py-1.5 border rounded disabled:opacity-40">Próxima</button></div>
         </div>
       </div>
     </div>
