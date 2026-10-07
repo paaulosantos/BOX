@@ -13,6 +13,8 @@ export interface Product {
   category: string;
   stock: number;
   unit: string;
+  purchaseUnit?: string;
+  unitsPerPackage?: number;
   minStock: number;
   costPrice: number;
   salePrice: number;
@@ -105,6 +107,8 @@ export interface StagedXmlItem {
   fractionStep?: number;
   minStock?: number;
   maxStock?: number;
+  saleUnit?: string;
+  unitsPerPackage?: number;
 }
 
 export interface StagedInvoice {

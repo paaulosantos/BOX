@@ -12,7 +12,7 @@ const ProductModel = sequelize.define('Product', {
   id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
   name: { type: DataTypes.STRING, allowNull: false }, sku: { type: DataTypes.STRING, allowNull: false, unique: true }, sourceCode: DataTypes.STRING,
   category: { type: DataTypes.STRING, allowNull: false, defaultValue: 'Geral' }, stock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
-  unit: { type: DataTypes.STRING, allowNull: false, defaultValue: 'un' }, minStock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  unit: { type: DataTypes.STRING, allowNull: false, defaultValue: 'un' }, purchaseUnit: { type: DataTypes.STRING, allowNull: false, defaultValue: 'un' }, unitsPerPackage: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 1 }, minStock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   maxStock: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 }, costPrice: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   salePrice: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 }, image: { type: DataTypes.TEXT, allowNull: true }, supplier: { type: DataTypes.STRING, allowNull: true },
   allowFractional: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, fractionStep: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 1 },
@@ -70,6 +70,8 @@ export const db = {
     if (!productColumns.sourceCode) await queryInterface.addColumn('Products', 'sourceCode', { type: DataTypes.STRING, allowNull: true });
     if (!productColumns.allowFractional) await queryInterface.addColumn('Products', 'allowFractional', { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false });
     if (!productColumns.fractionStep) await queryInterface.addColumn('Products', 'fractionStep', { type: DataTypes.FLOAT, allowNull: false, defaultValue: 1 });
+    if (!productColumns.purchaseUnit) await queryInterface.addColumn('Products', 'purchaseUnit', { type: DataTypes.STRING, allowNull: false, defaultValue: 'un' });
+    if (!productColumns.unitsPerPackage) await queryInterface.addColumn('Products', 'unitsPerPackage', { type: DataTypes.FLOAT, allowNull: false, defaultValue: 1 });
     const movementColumns = await queryInterface.describeTable('StockMovements');
     for (const [name, definition] of Object.entries({ invoiceNumber: DataTypes.STRING, unitCost: DataTypes.FLOAT, unitSalePrice: DataTypes.FLOAT, sourceBalance: DataTypes.FLOAT, sourceCostValue: DataTypes.FLOAT, sourceSaleValue: DataTypes.FLOAT, sourceRow: DataTypes.INTEGER, importSourceKey: DataTypes.STRING })) {
       if (!movementColumns[name]) await queryInterface.addColumn('StockMovements', name, { type: definition, allowNull: true });
@@ -139,12 +141,16 @@ export const db = {
       let latestMovement: StockMovement|null = null;
       for(const item of staged.items) {
         const sku=item.skuMatch?.trim().toUpperCase();
-        if(!sku || !item.name?.trim() || !Number.isFinite(item.quantity) || item.quantity<=0) throw new Error(`Confira código, descrição e quantidade do item "${item.name || item.id}".`);
+        const unitsPerPackage = item.unitsPerPackage ?? 1;
+        if(!sku || !item.name?.trim() || !Number.isFinite(item.quantity) || item.quantity<=0 || !Number.isFinite(unitsPerPackage) || unitsPerPackage<=0) throw new Error(`Confira código, descrição e quantidades da embalagem do item "${item.name || item.id}".`);
+        const receivedStock = item.quantity * unitsPerPackage;
+        const unitCost = item.unitPrice / unitsPerPackage;
+        const saleUnit = item.saleUnit?.trim() || item.unit || 'un';
         let product=await ProductModel.findOne({where:{sku},transaction});
         if(!product && item.salePrice===undefined) throw new Error(`Defina o preço de venda do novo produto "${item.name}" antes de confirmar.`);
-        if(!product) product=await ProductModel.create({name:item.name.trim(),sku,category:item.category?.trim()||'Geral',stock:0,unit:item.unit||'un',minStock:item.minStock||0,maxStock:item.maxStock||0,costPrice:item.unitPrice,salePrice:item.salePrice??0,supplier:staged.supplierName,invoiceNumber:staged.invoiceNumber,ncm:item.ncm,cfop:item.cfop,allowFractional:item.allowFractional||false,fractionStep:item.allowFractional?(item.fractionStep||0.5):1},{transaction});
+        if(!product) product=await ProductModel.create({name:item.name.trim(),sku,category:item.category?.trim()||'Geral',stock:0,unit:saleUnit,purchaseUnit:item.unit||'un',unitsPerPackage,costPrice:unitCost,salePrice:item.salePrice??0,supplier:staged.supplierName,invoiceNumber:staged.invoiceNumber,ncm:item.ncm,cfop:item.cfop,allowFractional:item.allowFractional||false,fractionStep:item.allowFractional?(item.fractionStep||0.5):1},{transaction});
         const p:any=plain<Product>(product);
-        const updates:any={name:item.name.trim(),stock:p.stock+item.quantity,costPrice:item.unitPrice,supplier:staged.supplierName,invoiceNumber:staged.invoiceNumber,unit:item.unit||p.unit,ncm:item.ncm||p.ncm,cfop:item.cfop||p.cfop};
+        const updates:any={name:item.name.trim(),stock:p.stock+receivedStock,costPrice:unitCost,supplier:staged.supplierName,invoiceNumber:staged.invoiceNumber,unit:saleUnit,purchaseUnit:item.unit||p.purchaseUnit||'un',unitsPerPackage,ncm:item.ncm||p.ncm,cfop:item.cfop||p.cfop};
         if(item.category?.trim()) updates.category=item.category.trim();
         if(item.salePrice!==undefined) updates.salePrice=item.salePrice;
         if(item.allowFractional!==undefined) updates.allowFractional=item.allowFractional;
@@ -153,7 +159,7 @@ export const db = {
         if(item.maxStock!==undefined) updates.maxStock=item.maxStock;
         await product.update(updates,{transaction});
         if(item.imageDataUrl) await this.saveProductImage(p.id,item.imageDataUrl,transaction);
-        const movement=await MovementModel.create({productId:p.id,timestamp:when,time,productName:item.name.trim(),sku,origin:staged.supplierName,destination:'Estoque',operationType:'Entrada Fornecedor',quantity:item.quantity,unit:item.unit||'un',responsibleName:'Operador',responsibleAvatar:'',branch:'matriz',invoiceNumber:staged.invoiceNumber,unitCost:item.unitPrice,unitSalePrice:item.salePrice},{transaction}); latestMovement=plain<StockMovement>(movement);
+        const movement=await MovementModel.create({productId:p.id,timestamp:when,time,productName:item.name.trim(),sku,origin:`${staged.supplierName} (${item.quantity} ${item.unit || 'emb.'} × ${unitsPerPackage} ${saleUnit})`,destination:'Estoque',operationType:'Entrada Fornecedor',quantity:receivedStock,unit:saleUnit,responsibleName:'Operador',responsibleAvatar:'',branch:'matriz',invoiceNumber:staged.invoiceNumber,unitCost:unitCost,unitSalePrice:item.salePrice},{transaction}); latestMovement=plain<StockMovement>(movement);
       }
       const invoice=await InvoiceModel.create({number:staged.invoiceNumber,series:'1',type:'Entrada',docType:'NF-e',partyName:staged.supplierName,taxId:staged.supplierCnpj,date:when,amount:staged.totalAmount,status:'Importada',accessKey:staged.accessKey,xmlAvailable:Boolean(staged.xmlContent),xml:staged.xmlContent||null},{transaction});
       await StagedModel.destroy({where:{id:1},transaction});
