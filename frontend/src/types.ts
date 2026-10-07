@@ -2,12 +2,14 @@ export type ViewType =
   | 'dashboard' 
   | 'products' 
   | 'inventory' 
-  | 'invoices';
+  | 'invoices'
+  | 'history';
 
 export interface Product {
   id: string;
   name: string;
   sku: string;
+  sourceCode?: string;
   category: string;
   stock: number;
   unit: string;
@@ -36,12 +38,19 @@ export interface StockMovement {
   sku: string;
   origin: string;
   destination: string;
-  operationType: 'Entrada Fornecedor' | 'Saída PDV' | 'Transferência' | 'Ajuste Avaria' | 'Ajuste Inventário';
+  operationType: 'Entrada Fornecedor' | 'Saída' | 'Saída PDV' | 'Transferência' | 'Ajuste Avaria' | 'Ajuste Inventário';
   quantity: number; // positive or negative
   unit: string;
   responsibleName: string;
   responsibleAvatar: string;
   branch: 'matriz' | 'curitiba' | 'all';
+  invoiceNumber?: string;
+  unitCost?: number;
+  unitSalePrice?: number;
+  sourceBalance?: number;
+  sourceCostValue?: number;
+  sourceSaleValue?: number;
+  sourceRow?: number;
 }
 
 export interface Transfer {
@@ -97,6 +106,14 @@ export interface StagedInvoice {
   accessKey: string;
   items: StagedXmlItem[];
   xmlContent?: string;
+}
+
+export interface InventorySnapshot {
+  id: string;
+  date: string;
+  costValue: number;
+  saleValue: number;
+  itemCount: number;
 }
 
 export interface ToastMessage {

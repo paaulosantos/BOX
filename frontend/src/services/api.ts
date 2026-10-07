@@ -1,4 +1,4 @@
-import { Product, StockMovement, Transfer, Invoice, StagedInvoice } from '../types';
+import { Product, StockMovement, Transfer, Invoice, StagedInvoice, InventorySnapshot } from '../types';
 
 const API_BASE = '/api';
 
@@ -112,6 +112,11 @@ export const api = {
   // Invoices
   async getInvoices(): Promise<Invoice[]> {
     const res = await request<{ success: boolean; data: Invoice[] }>(`/invoices`);
+    return res.data;
+  },
+
+  async getInventoryHistory(): Promise<InventorySnapshot[]> {
+    const res = await request<{ success: boolean; data: InventorySnapshot[] }>('/history');
     return res.data;
   },
 

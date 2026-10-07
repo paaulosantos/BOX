@@ -19,6 +19,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'products', label: 'Produtos & Estoque', icon: 'inventory_2', badge: stockAlertCount, badgeColor: 'bg-[#FFF1DC] text-[#FF8500] border border-[#FFD2A6]/60' },
     { id: 'inventory', label: 'Estoque & Movimentações', icon: 'warehouse' },
     { id: 'invoices', label: 'Notas Fiscais & XML', icon: 'receipt_long', badge: pendingInvoiceCount, badgeColor: 'bg-[#FFF1DC] text-[#FF8500] border border-[#FFD2A6]/60' },
+    { id: 'history', label: 'Histórico de Estoque', icon: 'history' },
   ];
 
   return (

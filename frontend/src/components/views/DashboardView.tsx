@@ -26,6 +26,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const lowStockCount = products.filter(p => p.status === 'low').length;
   const outOfStockCount = products.filter(p => p.status === 'out').length;
   const totalStockValue = products.reduce((acc, p) => acc + (p.stock * p.costPrice), 0);
+  const totalSaleValue = products.reduce((acc, p) => acc + (p.stock * p.salePrice), 0);
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-8 space-y-8 select-none">
@@ -70,15 +71,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col justify-between hover:border-[#FFD2A6] transition-colors cursor-pointer"
         >
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-medium">Valor Total em Estoque</span>
+            <span className="text-xs font-medium">Valor Total em Estoque (custo)</span>
             <span className="material-symbols-outlined text-[18px] text-slate-400">inventory_2</span>
           </div>
           <div className="mt-4">
             <div className="text-2xl font-bold tracking-tight text-slate-900 font-mono">
               {money(totalStockValue)}
             </div>
+            <div className="text-[11px] text-slate-500 mt-1">Venda potencial: {money(totalSaleValue)}</div>
             <div className="flex items-center gap-1.5 mt-1.5">
-                <span className="text-[11px] text-slate-400">{products.reduce((sum, p) => sum + p.stock, 0).toLocaleString('pt-BR')} unidades cadastradas</span>
+              <span className="text-[11px] text-slate-400">{products.reduce((sum, p) => sum + p.stock, 0).toLocaleString('pt-BR')} unidades cadastradas</span>
             </div>
           </div>
         </div>
@@ -129,7 +131,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col justify-between hover:border-[#FFD2A6] transition-colors cursor-pointer"
         >
           <div className="flex items-center justify-between text-slate-500">
-            <span className="text-xs font-medium">NFs Emitidas Hoje</span>
+            <span className="text-xs font-medium">Notas no Sistema</span>
             <span className="material-symbols-outlined text-[18px] text-slate-400">receipt_long</span>
           </div>
           <div className="mt-4">
@@ -182,7 +184,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-100 text-slate-400 uppercase tracking-wider font-medium text-[10px]">
-                  <th className="pb-2.5">Horário</th>
+                  <th className="pb-2.5">Data</th>
                   <th className="pb-2.5">Item</th>
                   <th className="pb-2.5">Tipo</th>
                   <th className="pb-2.5 text-right">Qtd</th>
@@ -190,7 +192,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {recentMovements.slice(0, 5).map(m => <tr key={m.id} className="group hover:bg-slate-50/70 transition-colors"><td className="py-3 text-slate-500 font-mono text-[11px]">{m.time}</td><td className="py-3 pr-2"><span className="font-medium text-slate-800 block truncate max-w-[130px]">{m.productName}</span><span className="text-[10px] text-slate-400 font-mono">{m.sku}</span></td><td className="py-3"><span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700">{m.operationType}</span></td><td className={`py-3 text-right font-medium ${m.quantity > 0 ? 'text-emerald-600' : 'text-slate-700'}`}>{m.quantity > 0 ? '+' : ''}{m.quantity} {m.unit}</td><td className="py-3 text-right"><span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Registrado</span></td></tr>)}
+                {recentMovements.slice(0, 5).map(m => <tr key={m.id} className="group hover:bg-slate-50/70 transition-colors"><td className="py-3 text-slate-500 font-mono text-[11px]">{m.timestamp}</td><td className="py-3 pr-2"><span className="font-medium text-slate-800 block truncate max-w-[130px]">{m.productName}</span><span className="text-[10px] text-slate-400 font-mono">{m.sku}</span></td><td className="py-3"><span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700">{m.operationType}</span></td><td className={`py-3 text-right font-medium ${m.quantity > 0 ? 'text-emerald-600' : 'text-slate-700'}`}>{m.quantity > 0 ? '+' : ''}{m.quantity} {m.unit}</td><td className="py-3 text-right"><span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Registrado</span></td></tr>)}
 
                 {!recentMovements.length && <tr><td colSpan={5} className="py-10 text-center text-slate-400">Nenhuma movimentação registrada</td></tr>}
               </tbody>

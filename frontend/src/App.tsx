@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ViewType, Product, StockMovement, Transfer, Invoice, StagedInvoice, ToastMessage } from './types';
+import { ViewType, Product, StockMovement, Transfer, Invoice, StagedInvoice, ToastMessage, InventorySnapshot } from './types';
 import { api } from './services/api';
 
 import { Header } from './components/Header';
@@ -11,6 +11,7 @@ import { DashboardView } from './components/views/DashboardView';
 import { ProductsView } from './components/views/ProductsView';
 import { InventoryView } from './components/views/InventoryView';
 import { InvoicesView } from './components/views/InvoicesView';
+import { InventoryHistoryView } from './components/views/InventoryHistoryView';
 
 // Modals
 import { StockAdjustmentModal } from './components/modals/StockAdjustmentModal';
@@ -34,6 +35,7 @@ export default function App() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [inventoryHistory, setInventoryHistory] = useState<InventorySnapshot[]>([]);
   const [stagedInvoice, setStagedInvoice] = useState<StagedInvoice | null>(null);
 
   // Notifications
@@ -56,18 +58,20 @@ export default function App() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [prods, movs, trfs, invs, staged] = await Promise.all([
+        const [prods, movs, trfs, invs, staged, history] = await Promise.all([
           api.getProducts().catch(() => null),
           api.getMovements().catch(() => null),
           api.getTransfers().catch(() => null),
           api.getInvoices().catch(() => null),
           api.getStagedInvoice().catch(() => null),
+          api.getInventoryHistory().catch(() => null),
         ]);
 
         if (prods) setProducts(prods);
         if (movs) setMovements(movs);
         if (trfs) setTransfers(trfs);
         if (invs) setInvoices(invs);
+        if (history) setInventoryHistory(history);
         setStagedInvoice(staged);
       } catch (e) {
         console.warn('Backend API não conectado, rodando no modo local:', e);
@@ -265,6 +269,8 @@ export default function App() {
               searchQuery={globalSearch}
             />
           )}
+
+          {currentView === 'history' && <InventoryHistoryView snapshots={inventoryHistory} />}
         </main>
       </div>
 

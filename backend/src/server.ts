@@ -3,6 +3,7 @@ import productsRouter from './routes/products';
 import movementsRouter from './routes/movements';
 import transfersRouter from './routes/transfers';
 import invoicesRouter from './routes/invoices';
+import historyRouter from './routes/history';
 import { db, databasePath } from './data/store';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -44,6 +45,7 @@ app.use('/api/products', productsRouter);
 app.use('/api/movements', movementsRouter);
 app.use('/api/transfers', transfersRouter);
 app.use('/api/invoices', invoicesRouter);
+app.use('/api/history', historyRouter);
 
 // Start server
 const dataDir = path.resolve(databasePath);

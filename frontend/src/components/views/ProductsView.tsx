@@ -34,6 +34,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       const matchesSearch =
         p.name.toLowerCase().includes(effectiveSearch) ||
         p.sku.toLowerCase().includes(effectiveSearch) ||
+        (p.sourceCode || '').toLowerCase().includes(effectiveSearch) ||
+        (p.supplier || '').toLowerCase().includes(effectiveSearch) ||
         p.category.toLowerCase().includes(effectiveSearch);
 
       if (!matchesSearch) return false;
@@ -203,7 +205,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         </div>
                         <div className="flex flex-col">
                           <span className="font-semibold text-slate-800 text-sm">{prod.name}</span>
-                          <span className="text-xs text-slate-400 font-normal">SKU: {prod.sku}</span>
+                          <span className="text-xs text-slate-400 font-normal">Código: {prod.sourceCode || prod.sku}</span>
                         </div>
                       </div>
                     </td>

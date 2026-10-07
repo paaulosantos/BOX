@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { StockMovement, Transfer, Product } from '../../types';
 
+const money = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 interface InventoryViewProps {
   movements: StockMovement[];
   transfers: Transfer[];
@@ -54,6 +56,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         m.productName.toLowerCase().includes(effectiveSearch) ||
         m.sku.toLowerCase().includes(effectiveSearch) ||
         m.origin.toLowerCase().includes(effectiveSearch) ||
+        (m.invoiceNumber || '').toLowerCase().includes(effectiveSearch) ||
         m.destination.toLowerCase().includes(effectiveSearch);
 
       if (!matchesSearch) return false;
@@ -301,7 +304,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             {showFiltersDropdown && (
               <div className="absolute right-0 top-10 w-52 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-30">
                 <span className="text-[10px] uppercase font-semibold text-slate-400 px-2 py-1 block">Tipo de Operação</span>
-                {['all', 'Entrada Fornecedor', 'Saída PDV', 'Transferência', 'Ajuste Avaria'].map((op) => (
+                {['all', 'Entrada Fornecedor', 'Saída', 'Saída PDV', 'Transferência', 'Ajuste Avaria', 'Ajuste Inventário'].map((op) => (
                   <button
                     key={op}
                     onClick={() => {
@@ -357,6 +360,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         Saída PDV
                       </span>
                     )}
+                    {mov.operationType === 'Saída' && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700">Saída</span>
+                    )}
                     {mov.operationType === 'Transferência' && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700">
                         Transferência
@@ -367,6 +373,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         {mov.operationType}
                       </span>
                     )}
+                    {(mov.invoiceNumber || mov.unitCost != null || mov.unitSalePrice != null || mov.sourceBalance != null) && <div className="mt-1 max-w-[230px] whitespace-normal text-[10px] text-slate-400">{mov.invoiceNumber ? `NF ${mov.invoiceNumber} · ` : ''}{mov.unitCost != null ? `Compra/un. ${money(mov.unitCost)} · ` : ''}{mov.unitSalePrice != null ? `Venda/un. ${money(mov.unitSalePrice)} · ` : ''}{mov.sourceBalance != null ? `Saldo planilha: ${mov.sourceBalance} · ` : ''}{mov.sourceCostValue != null ? `Custo total: ${money(mov.sourceCostValue)} · ` : ''}{mov.sourceSaleValue != null ? `Venda total: ${money(mov.sourceSaleValue)} · ` : ''}{mov.sourceRow ? `Linha ${mov.sourceRow}` : ''}</div>}
                   </td>
                   <td
                     className={`py-4 px-5 text-right font-semibold whitespace-nowrap font-mono ${
@@ -381,12 +388,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </td>
                   <td className="py-4 px-5 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <img
+                      {mov.responsibleAvatar ? <img
                         src={mov.responsibleAvatar}
                         alt={mov.responsibleName}
                         className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200"
                         referrerPolicy="no-referrer"
-                      />
+                      /> : <span className="w-6 h-6 rounded-full bg-slate-100 ring-1 ring-slate-200 flex items-center justify-center text-[10px] font-semibold text-slate-500">{mov.responsibleName.slice(0, 1)}</span>}
                       <span className="text-xs font-medium text-slate-800">{mov.responsibleName}</span>
                     </div>
                   </td>
