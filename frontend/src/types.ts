@@ -2,8 +2,7 @@ export type ViewType =
   | 'dashboard' 
   | 'products' 
   | 'inventory' 
-  | 'invoices'
-  | 'history';
+  | 'invoices';
 
 export interface Product {
   id: string;
